@@ -6,19 +6,21 @@ def preprocess_train_data(image, label):
     # Cast to float32 (values are still 0-255)
     image = tf.cast(image, tf.float32)
     
-    # 1. Spatial Augmentations
+    # Spatial Augmentations
     image = tf.image.resize_with_crop_or_pad(image, 40, 40)
     image = tf.image.random_crop(image, size=[32, 32, 3])
     image = tf.image.random_flip_left_right(image)
     
-    # 2. Color Augmentations (applied while values are 0-255)
-    image = tf.image.random_brightness(image, max_delta=25.5)
+    # Color Augmentations (applied while values are 0-255)
     image = tf.image.random_contrast(image, lower=0.8, upper=1.2)
     
-    # 3. Normalization to [-1, 1]
+    # Normalization to [-1, 1]
     image = (image / 127.5) - 1.0
+
+    # Random Brightness (applied after normalization to [-1, 1])
+    image = tf.image.random_brightness(image, max_delta=0.2)
     
-    # 4. Clipping to ensure values stay within valid bounds
+    # Clipping to ensure values stay within valid bounds
     image = tf.clip_by_value(image, -1.0, 1.0)
     
     return image, label
@@ -37,33 +39,34 @@ def preprocess_val_data(image, label):
 
 def get_datasets(batch_size=128):
     # Load data
-    (x_train_full, y_train_full), (x_test, y_test) = cifar10.load_data()
+    # (x_train_full, y_train_full), (x_test, y_test) = cifar10.load_data()
+    x_train_full = tf.random.uniform(shape=(500, 32, 32, 3), minval=0, maxval=256, dtype=tf.int32)
+    y_train_full = tf.random.uniform(shape=(500, 1), minval=0, maxval=10, dtype=tf.int32)
+
+    x_test = tf.random.uniform(shape=(100, 32, 32, 3), minval=0, maxval=256, dtype=tf.int32)
+    y_test = tf.random.uniform(shape=(100, 1), minval=0, maxval=10, dtype=tf.int32)
 
     # Split the last 5,000 samples for validation
-    val_split_idx = -5000
+    val_split_idx = -50
     x_train, y_train = x_train_full[:val_split_idx], y_train_full[:val_split_idx]
     x_val, y_val = x_train_full[val_split_idx:], y_train_full[val_split_idx:]
 
-    # Create tf.data.Dataset objects
+    # Create tf.data.Dataset objects and configuration
     train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
     val_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
     test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
 
-    # Build pipelines
-    train_dataset = (train_dataset
-                     .shuffle(buffer_size=10000)
-                     .map(preprocess_train_data, num_parallel_calls=tf.data.AUTOTUNE)
-                     .batch(batch_size)
-                     .prefetch(tf.data.AUTOTUNE))
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    train_dataset = train_dataset.shuffle(buffer_size=batch_size * 128)
+    train_dataset = train_dataset.map(preprocess_train_data, num_parallel_calls=tf.data.AUTOTUNE)
+    train_dataset = train_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
-    val_dataset = (val_dataset
-                   .map(preprocess_val_data, num_parallel_calls=tf.data.AUTOTUNE)
-                   .batch(batch_size)
-                   .prefetch(tf.data.AUTOTUNE))
+    val_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
+    val_dataset = val_dataset.map(preprocess_val_data, num_parallel_calls=tf.data.AUTOTUNE)
+    val_dataset = val_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
-    test_dataset = (test_dataset
-                    .map(preprocess_val_data, num_parallel_calls=tf.data.AUTOTUNE)
-                    .batch(batch_size)
-                    .prefetch(tf.data.AUTOTUNE))
+    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+    test_dataset = test_dataset.map(preprocess_val_data, num_parallel_calls=tf.data.AUTOTUNE)
+    test_dataset = test_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
     return train_dataset, val_dataset, test_dataset
