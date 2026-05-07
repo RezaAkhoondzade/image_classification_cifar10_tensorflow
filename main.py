@@ -4,8 +4,8 @@ from dataset import get_datasets
 from model import build_resnet
 
 # Hyperparameters
-BATCH_SIZE = 32
-EPOCHS = 4
+BATCH_SIZE = 128
+EPOCHS = 200
 STAGE_BLOCKS = [3, 3, 3]
 STAGE_FILTERS = [16, 32, 64]
 INITIAL_LR = 0.1
