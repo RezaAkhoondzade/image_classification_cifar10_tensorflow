@@ -55,11 +55,11 @@ def random_pad(image):
     """
     Applies random ratio-based padding to the input image.
     Uses reflection padding by default to avoid introducing edge artifacts.
-    
-    Inputs: 
+
+    Inputs:
         image: Input image tensor. Shape: (H, W, C), Dtype: tf.float32
-    Outputs: 
-        padded image: Padded tensor. Shape: (H', W', C), Dtype: tf.float32
+    Outputs:
+        padded image: Padded tensor. Shape: (H_padd, W_padd, C), Dtype: tf.float32
     """
     if tf.random.uniform(()) > AUG_CONFIG["pad_prob"]:
         return image
@@ -90,12 +90,12 @@ def random_pad(image):
 def random_crop_like_imagenet(image):
     """
     Applies random cropping similar to standard ImageNet training strategies.
-    Calculates random target area and aspect ratio, converts them to width/height, 
+    Calculates random target area and aspect ratio, converts them to width/height,
     and extracts the corresponding bounding box.
-    
-    Inputs: 
+
+    Inputs:
         image: Image tensor. Shape: (H, W, C), Dtype: tf.float32
-    Outputs: 
+    Outputs:
         cropped image: Tensor. Shape: (H_crop, W_crop, C), Dtype: tf.float32
     """
     if tf.random.uniform(()) > AUG_CONFIG["crop_prob"]:
@@ -136,14 +136,14 @@ def random_crop_like_imagenet(image):
 def resize_image(image):
     """
     Resizes the image to the fixed target size defined in config.
-    
-    Inputs: 
+
+    Inputs:
         image: Image tensor. Shape: (H, W, C), Dtype: tf.float32
-    Outputs: 
+    Outputs:
         resized image: Tensor. Shape: (target_h, target_w, C), Dtype: tf.float32
     """
     method = AUG_CONFIG["resize_method"]
-    
+
     # Select interpolation method
     if method == "bilinear":
         method = tf.image.ResizeMethod.BILINEAR
@@ -158,12 +158,12 @@ def resize_image(image):
 def random_photometric_distort(image):
     """
     Applies random photometric distortions (SSD-style).
-    Randomizes the order of contrast application relative to saturation/hue 
+    Randomizes the order of contrast application relative to saturation/hue
     to provide greater color diversity. Keeps values bounded in [0, 255].
-    
-    Inputs: 
+
+    Inputs:
         image: Image tensor. Shape: (H, W, C), Dtype: tf.float32
-    Outputs: 
+    Outputs:
         distorted image: Tensor. Shape: (H, W, C), Dtype: tf.float32
     """
     # Adjust brightness
@@ -203,10 +203,10 @@ def random_cutout(image):
     """
     Randomly zeros out a square patch in the image.
     Generates coordinate masks to create a boolean mask for the cutout region.
-    
-    Inputs: 
+
+    Inputs:
         image: Image tensor. Shape: (H, W, C), Dtype: tf.float32
-    Outputs: 
+    Outputs:
         modified image: Tensor. Shape: (H, W, C), Dtype: tf.float32
     """
     # Check probability skip
@@ -254,10 +254,10 @@ def normalize_image(image):
     """
     Normalizes the image based on the selected configuration mode.
     Modes include [0, 1] scaling, [-1, 1] scaling, or CIFAR-10 standardization.
-    
-    Inputs: 
+
+    Inputs:
         image: Image tensor. Shape: (H, W, C), Dtype: tf.float32
-    Outputs: 
+    Outputs:
         normalized image: Tensor. Shape: (H, W, C), Dtype: tf.float32
     """
     mode = AUG_CONFIG["normalization"]
@@ -279,13 +279,13 @@ def normalize_image(image):
 def preprocess_train_data(image, label):
     """
     Full preprocessing pipeline for training data.
-    Applies spatial augmentations, geometric changes, photometric 
+    Applies spatial augmentations, geometric changes, photometric
     distortions, and finally normalizes the image.
-    
-    Inputs: 
+
+    Inputs:
         image: Original tensor. Shape: (H, W, C), Dtype: tf.uint8
         label: Label tensor. Shape: (1,), Dtype: tf.int64
-    Outputs: 
+    Outputs:
         processed image: Tensor. Shape: (target_h, target_w, C), Dtype: tf.float32
         label: Label tensor. Shape: (1,), Dtype: tf.int64
     """
@@ -312,11 +312,11 @@ def preprocess_val_data(image, label):
     """
     Preprocessing pipeline for validation and test data.
     Only applies type casting and normalization.
-    
-    Inputs: 
+
+    Inputs:
         image: Original tensor. Shape: (H, W, C), Dtype: tf.uint8
         label: Label tensor. Shape: (1,), Dtype: tf.int64
-    Outputs: 
+    Outputs:
         normalized image: Tensor. Shape: (H, W, C), Dtype: tf.float32
         label: Label tensor. Shape: (1,), Dtype: tf.int64
     """
@@ -330,10 +330,10 @@ def get_datasets(batch_size=128):
     """
     Loads CIFAR-10 and constructs optimized tf.data pipelines.
     Splits out a validation set and applies parallel mapping and prefetching.
-    
-    Inputs: 
+
+    Inputs:
         batch_size: Integer size of batches. Default: 128
-    Outputs: 
+    Outputs:
         train_dataset: tf.data.Dataset
         val_dataset: tf.data.Dataset
         test_dataset: tf.data.Dataset
