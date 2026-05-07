@@ -154,7 +154,8 @@ def random_crop_like_imagenet(image):
 
 def resize_image(image):
     method = AUG_CONFIG["resize_method"]
-
+    # TODO: add a small multi-scale resize with static int numbers
+    # Fix: extra if
     if method == "bilinear":
         method = tf.image.ResizeMethod.BILINEAR
     elif method == "bicubic":
@@ -326,7 +327,7 @@ def normalize_image(image):
 
     else:
         raise ValueError(
-            f"Unknown normalization mode: {mode}. "
+            f"Unknown normalization mode: {mode}."
             "Valid options: '0_1', 'minus1_1', 'cifar10'"
         )
 
@@ -348,30 +349,17 @@ def preprocess_train_data(image, label):
 
     # Spatial augmentations
     # Padding allows random translation via cropping
-    """
-    pad = AUG_CONFIG["pad_pixels"]
-    image = tf.image.resize_with_crop_or_pad(
-        image,
-        32 + pad * 2,
-        32 + pad * 2
-    )
-
-    # Random crop back to CIFAR size
-    image = tf.image.random_crop(image, [32, 32, 3])
-    """
-
     image = random_pad(image)
 
     image = random_crop_like_imagenet(image)
 
     image = resize_image(image)
 
+    image = random_cutout(image)
+
     # Horizontal flip
     if tf.random.uniform(()) < AUG_CONFIG["flip_prob"]:
         image = tf.image.flip_left_right(image)
-
-    # TEST: Cutout before color jitter
-    image = random_cutout(image)
 
     # Color augmentations
     image = random_photometric_distort(image)
