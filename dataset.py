@@ -79,6 +79,7 @@ def random_photometric_distort(image):
 
     Each transformation is applied with an independent probability
     defined in AUG_CONFIG.
+    Clipping is only applied for bounded normalization modes.
     """
 
     # Random brightness adjustment
@@ -212,8 +213,6 @@ def normalize_image(image):
         0_1      → scale to [0, 1]
         minus1_1 → scale to [-1, 1]
         cifar10  → mean/std normalization
-
-    Clipping is only applied for bounded normalization modes.
     """
 
     mode = AUG_CONFIG["normalization"]
