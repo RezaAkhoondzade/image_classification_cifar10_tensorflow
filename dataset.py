@@ -57,6 +57,19 @@ AUG_CONFIG = {
     # Padding used for translation augmentation
     "pad_pixels": 4,
 
+    "target_size": (32, 32),
+
+    "pad_prob": 0.5,
+    "pad_ratio_range": (0.0, 0.10),
+    "pad_mode": "REFLECT",
+
+    "crop_prob": 1.0,
+    "crop_area_range": (0.6, 1.0),
+    "aspect_ratio_range": (0.75, 1.33),
+    "use_aspect_ratio": True,
+
+    "resize_method": "bilinear",
+
     # Cutout / Random Erasing
     "cutout_prob": 0.5,          # probability to apply cutout
     "cutout_min_size": 4,
@@ -66,6 +79,90 @@ AUG_CONFIG = {
     # options: "0_1", "minus1_1", "cifar10"
     "normalization": "minus1_1"
 }
+
+
+def random_pad(image):
+    if tf.random.uniform(()) > AUG_CONFIG["pad_prob"]:
+        return image
+
+    shape = tf.shape(image)
+    h = tf.cast(shape[0], tf.float32)
+    w = tf.cast(shape[1], tf.float32)
+
+    rmin, rmax = AUG_CONFIG["pad_ratio_range"]
+
+    ratio = tf.random.uniform([], rmin, rmax)
+
+    pad_h = tf.cast(h * ratio, tf.int32)
+    pad_w = tf.cast(w * ratio, tf.int32)
+
+    pad_top = tf.random.uniform([], 0, pad_h + 1, dtype=tf.int32)
+    pad_bottom = pad_h - pad_top
+
+    pad_left = tf.random.uniform([], 0, pad_w + 1, dtype=tf.int32)
+    pad_right = pad_w - pad_left
+
+    paddings = [
+        [pad_top, pad_bottom],
+        [pad_left, pad_right],
+        [0, 0]
+    ]
+
+    mode = AUG_CONFIG["pad_mode"]
+
+    return tf.pad(image, paddings, mode=mode)
+
+
+def random_crop_like_imagenet(image):
+    if tf.random.uniform(()) > AUG_CONFIG["crop_prob"]:
+        return image
+
+    shape = tf.shape(image)
+    h = tf.cast(shape[0], tf.float32)
+    w = tf.cast(shape[1], tf.float32)
+
+    area = h * w
+
+    area_min, area_max = AUG_CONFIG["crop_area_range"]
+    target_area = tf.random.uniform([], area_min, area_max) * area
+
+    if AUG_CONFIG["use_aspect_ratio"]:
+        ar_min, ar_max = AUG_CONFIG["aspect_ratio_range"]
+        aspect = tf.random.uniform([], ar_min, ar_max)
+    else:
+        aspect = w / h
+
+    crop_w = tf.sqrt(target_area * aspect)
+    crop_h = tf.sqrt(target_area / aspect)
+
+    crop_w = tf.cast(tf.minimum(crop_w, w), tf.int32)
+    crop_h = tf.cast(tf.minimum(crop_h, h), tf.int32)
+
+    offset_h = tf.random.uniform([], 0, tf.cast(h, tf.int32) - crop_h + 1, dtype=tf.int32)
+    offset_w = tf.random.uniform([], 0, tf.cast(w, tf.int32) - crop_w + 1, dtype=tf.int32)
+
+    image = tf.image.crop_to_bounding_box(
+        image,
+        offset_h,
+        offset_w,
+        crop_h,
+        crop_w
+    )
+
+    return image
+
+
+def resize_image(image):
+    method = AUG_CONFIG["resize_method"]
+
+    if method == "bilinear":
+        method = tf.image.ResizeMethod.BILINEAR
+    elif method == "bicubic":
+        method = tf.image.ResizeMethod.BICUBIC
+    else:
+        method = tf.image.ResizeMethod.BILINEAR
+
+    return tf.image.resize(image, AUG_CONFIG["target_size"], method=method)
 
 
 def random_photometric_distort(image):
@@ -124,7 +221,7 @@ def random_photometric_distort(image):
                 AUG_CONFIG["contrast_upper"]
             )
 
-    # Clip to make sure there are not any outbound values
+    # Clip to make sure there are not any unbound values
     image = tf.clip_by_value(image, 0.0, 255.0)
 
     return image
@@ -251,8 +348,8 @@ def preprocess_train_data(image, label):
 
     # Spatial augmentations
     # Padding allows random translation via cropping
+    """
     pad = AUG_CONFIG["pad_pixels"]
-
     image = tf.image.resize_with_crop_or_pad(
         image,
         32 + pad * 2,
@@ -261,6 +358,13 @@ def preprocess_train_data(image, label):
 
     # Random crop back to CIFAR size
     image = tf.image.random_crop(image, [32, 32, 3])
+    """
+
+    image = random_pad(image)
+
+    image = random_crop_like_imagenet(image)
+
+    image = resize_image(image)
 
     # Horizontal flip
     if tf.random.uniform(()) < AUG_CONFIG["flip_prob"]:
