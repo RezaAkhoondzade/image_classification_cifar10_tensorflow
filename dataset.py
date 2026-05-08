@@ -27,21 +27,20 @@ AUG_CONFIG = {
     "brightness_prob": 0.5,          # Probability to apply random brightness
     "brightness_delta": 32.0,        # Max delta for brightness adjustment
     "contrast_prob": 0.5,            # Probability to apply random contrast
-    "contrast_lower": 0.5,           # Lower bound for contrast factor
-    "contrast_upper": 1.5,           # Upper bound for contrast factor
+    "contrast_lower": 0.8,           # Lower bound for contrast factor
+    "contrast_upper": 1.25,           # Upper bound for contrast factor
     "saturation_prob": 0.5,          # Probability to apply random saturation
-    "saturation_lower": 0.5,         # Lower bound for saturation factor
-    "saturation_upper": 1.5,         # Upper bound for saturation factor
+    "saturation_lower": 0.8,         # Lower bound for saturation factor
+    "saturation_upper": 1.2,         # Upper bound for saturation factor
     "hue_prob": 0.5,                 # Probability to apply random hue
     "hue_delta": 0.1,                # Max delta for hue adjustment
-    "pad_pixels": 4,                 # ENHANCEMENT: Fixed pixel pad option
     "target_size": (32, 32),         # Target output resolution
-    "pad_prob": 0.5,                 # Probability to apply random padding
-    "pad_ratio_range": (0.0, 0.10),  # Range for dynamic ratio padding
+    "pad_prob": 0.9,                 # Probability to apply random padding
+    "pad_ratio_range": (0.0, 0.25),  # Range for dynamic ratio padding
     "pad_mode": "REFLECT",           # Padding mode (e.g., REFLECT, CONSTANT)
-    "crop_prob": 1.0,                # Probability to apply random crop
-    "crop_area_range": (0.6, 1.0),   # Range for crop area relative to original
-    "aspect_ratio_range": (0.75, 1.33), # Range for crop aspect ratio
+    "crop_prob": 0.9,                # Probability to apply random crop
+    "crop_area_range": (0.75, 1.0),   # Range for crop area relative to original
+    "aspect_ratio_range": (0.8, 1.25), # Range for crop aspect ratio
     "use_aspect_ratio": True,        # Whether to use aspect ratio during crop
     "resize_method": "bilinear",     # Interpolation method for resize
     "cutout_prob": 0.5,              # Probability to apply cutout
@@ -68,23 +67,21 @@ def random_pad(image):
     h = tf.cast(shape[0], tf.float32)
     w = tf.cast(shape[1], tf.float32)
 
+    # Computer random pad_h and pad_w in both dimensions
     rmin, rmax = AUG_CONFIG["pad_ratio_range"]
-    ratio = tf.random.uniform([], rmin, rmax)
-
-    pad_h = tf.cast(h * ratio, tf.int32)
-    pad_w = tf.cast(w * ratio, tf.int32)
+    ratio = tf.random.uniform([2, ], rmin, rmax)
+    pad_h = tf.cast(h * ratio[0], tf.int32)
+    pad_w = tf.cast(w * ratio[1], tf.int32)
 
     # Compute random padding offsets
     pad_top = tf.random.uniform([], 0, pad_h + 1, dtype=tf.int32)
     pad_bottom = pad_h - pad_top
-
     pad_left = tf.random.uniform([], 0, pad_w + 1, dtype=tf.int32)
     pad_right = pad_w - pad_left
 
     paddings = [[pad_top, pad_bottom], [pad_left, pad_right], [0, 0]]
 
-    mode = AUG_CONFIG["pad_mode"]
-    return tf.pad(image, paddings, mode=mode)
+    return tf.pad(image, paddings, mode=AUG_CONFIG["pad_mode"])
 
 
 def random_crop_like_imagenet(image):
@@ -119,7 +116,6 @@ def random_crop_like_imagenet(image):
     # Compute dimensions from area and aspect ratio
     crop_w = tf.sqrt(target_area * aspect)
     crop_h = tf.sqrt(target_area / aspect)
-
     crop_w = tf.cast(tf.minimum(crop_w, w), tf.int32)
     crop_h = tf.cast(tf.minimum(crop_h, h), tf.int32)
 
@@ -153,50 +149,6 @@ def resize_image(image):
         method = tf.image.ResizeMethod.BILINEAR
 
     return tf.image.resize(image, AUG_CONFIG["target_size"], method=method)
-
-
-def random_photometric_distort(image):
-    """
-    Applies random photometric distortions (SSD-style).
-    Randomizes the order of contrast application relative to saturation/hue
-    to provide greater color diversity. Keeps values bounded in [0, 255].
-
-    Inputs:
-        image: Image tensor. Shape: (H, W, C), Dtype: tf.float32
-    Outputs:
-        distorted image: Tensor. Shape: (H, W, C), Dtype: tf.float32
-    """
-    # Adjust brightness
-    if tf.random.uniform(()) < AUG_CONFIG["brightness_prob"]:
-        image = tf.image.random_brightness(image, 
-            max_delta=AUG_CONFIG["brightness_delta"])
-
-    # Determine contrast application order
-    contrast_first = tf.random.uniform(()) < 0.5
-
-    if contrast_first:
-        if tf.random.uniform(()) < AUG_CONFIG["contrast_prob"]:
-            image = tf.image.random_contrast(image, AUG_CONFIG["contrast_lower"], 
-                AUG_CONFIG["contrast_upper"])
-
-    # Adjust saturation
-    if tf.random.uniform(()) < AUG_CONFIG["saturation_prob"]:
-        image = tf.image.random_saturation(image, AUG_CONFIG["saturation_lower"], 
-            AUG_CONFIG["saturation_upper"])
-
-    # Shift hue
-    if tf.random.uniform(()) < AUG_CONFIG["hue_prob"]:
-        image = tf.image.random_hue(image, AUG_CONFIG["hue_delta"])
-
-    # Apply contrast if not applied earlier
-    if not contrast_first:
-        if tf.random.uniform(()) < AUG_CONFIG["contrast_prob"]:
-            image = tf.image.random_contrast(image, AUG_CONFIG["contrast_lower"], 
-                AUG_CONFIG["contrast_upper"])
-
-    # Bound pixel values
-    image = tf.clip_by_value(image, 0.0, 255.0)
-    return image
 
 
 def random_cutout(image):
@@ -247,6 +199,49 @@ def random_cutout(image):
     mask = tf.expand_dims(mask, axis=-1)
     image = image * mask
 
+    return image
+
+
+def random_photometric_distort(image):
+    """
+    Applies random photometric distortions (SSD-style).
+    Randomizes the order of contrast application relative to saturation/hue
+    to provide greater color diversity. Keeps values bounded in [0, 255].
+
+    Inputs:
+        image: Image tensor. Shape: (H, W, C), Dtype: tf.float32
+    Outputs:
+        distorted image: Tensor. Shape: (H, W, C), Dtype: tf.float32
+    """
+    # Adjust brightness
+    if tf.random.uniform(()) < AUG_CONFIG["brightness_prob"]:
+        image = tf.image.random_brightness(image, AUG_CONFIG["brightness_delta"])
+
+    # Determine contrast application order
+    contrast_first = tf.random.uniform(()) < 0.5
+
+    if contrast_first:
+        if tf.random.uniform(()) < AUG_CONFIG["contrast_prob"]:
+            image = tf.image.random_contrast(image, AUG_CONFIG["contrast_lower"],
+                AUG_CONFIG["contrast_upper"])
+
+    # Adjust saturation
+    if tf.random.uniform(()) < AUG_CONFIG["saturation_prob"]:
+        image = tf.image.random_saturation(image, AUG_CONFIG["saturation_lower"],
+            AUG_CONFIG["saturation_upper"])
+
+    # Shift hue
+    if tf.random.uniform(()) < AUG_CONFIG["hue_prob"]:
+        image = tf.image.random_hue(image, AUG_CONFIG["hue_delta"])
+
+    # Apply contrast if not applied earlier
+    if not contrast_first:
+        if tf.random.uniform(()) < AUG_CONFIG["contrast_prob"]:
+            image = tf.image.random_contrast(image, AUG_CONFIG["contrast_lower"],
+                AUG_CONFIG["contrast_upper"])
+
+    # Bound pixel values
+    image = tf.clip_by_value(image, 0.0, 255.0)
     return image
 
 
