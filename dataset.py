@@ -321,7 +321,7 @@ def preprocess_val_data(image, label):
     return image, label
 
 
-def get_datasets(batch_size=128):
+def get_datasets(batch_size, epochs, steps_per_epoch):
     """
     Loads CIFAR-10 and constructs optimized tf.data pipelines.
     Splits out a validation set and applies parallel mapping and prefetching.
@@ -340,8 +340,13 @@ def get_datasets(batch_size=128):
     x_train, y_train = x_train_full[:val_split_idx], y_train_full[:val_split_idx]
     x_val, y_val = x_train_full[val_split_idx:], y_train_full[val_split_idx:]
 
+    # Calculate required repeats for train dataset
+    total_samples_needed = epochs * steps_per_epoch * batch_size
+    required_repeats = int(total_samples_needed / len(x_train)) + 1
+
     # Setup training pipeline
     train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    train_dataset = train_dataset.repeat(required_repeats)
     train_dataset = train_dataset.shuffle(buffer_size=batch_size * 128)
     train_dataset = train_dataset.map(preprocess_train_data, 
         num_parallel_calls=tf.data.AUTOTUNE)

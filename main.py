@@ -5,7 +5,7 @@ from dataset import get_datasets
 from model import build_resnet
 
 # Hyperparameters
-CHECKPOINT_DIR = "checkpoints/resnet333_try6"
+CHECKPOINT_DIR = "checkpoints/resnet333_try7"
 BATCH_SIZE = 64
 EPOCHS = 200
 STEPS_PER_EPOCH = 700
@@ -29,7 +29,8 @@ def main():
 
     # Get datasets
     print("Preparing datasets...")
-    train_dataset, val_dataset, test_dataset = get_datasets(batch_size=BATCH_SIZE)
+    train_dataset, val_dataset, test_dataset = get_datasets(batch_size=BATCH_SIZE,
+        epochs=EPOCHS, steps_per_epoch=STEPS_PER_EPOCH)
 
     # Build model
     print("Building model...")
