@@ -102,7 +102,7 @@ INITIAL_LR = 0.1
 
 Using the default small ResNet configuration (`[3, 3, 3]`, ~0.28M params) with the augmentation pipeline in `dataset.py`:
 
-**Test Accuracy: 91.86%**
+Achieved **Test Accuracy: 92.42%** with new image classification general data augmentations like random crop and random padding
 
 ---
 
@@ -111,6 +111,6 @@ Using the default small ResNet configuration (`[3, 3, 3]`, ~0.28M params) with t
 This project focuses on clarity and experimentation rather than production engineering. It is ideal for:
 
 - learning `tf.data` pipelines
-- trying out augmentation strategies
+- trying out different augmentation strategies
 - building or extending small ResNet variants
 - running CIFAR‑10 benchmarks
