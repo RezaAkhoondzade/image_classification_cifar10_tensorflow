@@ -1,61 +1,68 @@
 import os
 import json
+import yaml
+import shutil
 import tensorflow as tf
-from dataset import get_datasets
+from data_generator import DataGenerator
+from dataset import load_datasets
 from model import build_resnet
-
-# Hyperparameters
-CHECKPOINT_DIR = "checkpoints/resnet333_try7"
-BATCH_SIZE = 64
-EPOCHS = 200
-STEPS_PER_EPOCH = 700
-STAGE_BLOCKS = [3, 3, 3]
-STAGE_FILTERS = [16, 32, 64]
-INITIAL_LR = 0.1
-MIN_LR = 0.001
-MOMENTUM = 0.9
-WEIGHT_DECAY = 0.0001
 
 
 def main():
+    # Load configuration from YAML file
+    with open("config.yaml", "r") as f:
+        config = yaml.safe_load(f)
+
+    # Extract configs for easier access
+    train_cfg = config['training']
+    model_cfg = config['model']
+    augment_cfg = config['augmentation']
 
     # Prepare checkpoint folder and resume variables
     resume = False
     initial_epoch = 0
-    if not os.path.exists(CHECKPOINT_DIR):
-        os.mkdir(CHECKPOINT_DIR)
+    if not os.path.exists(train_cfg['checkpoint_dir']):
+        os.mkdir(train_cfg['checkpoint_dir'])
     else:
         resume = True
 
-    # Get datasets
+    # Copy config file into checkpoint folder
+    destination_path = os.path.join(train_cfg['checkpoint_dir'], 'config.yaml')
+    shutil.copy2("config.yaml", destination_path)
+
+    # Create data generator
+    data_generator = DataGenerator(augment_cfg)
+
+    # Get datasets and config tf.data.Dataset
     print("Preparing datasets...")
-    train_dataset, val_dataset, test_dataset = get_datasets(batch_size=BATCH_SIZE,
-        epochs=EPOCHS, steps_per_epoch=STEPS_PER_EPOCH)
+    train_dataset, val_dataset, test_dataset = load_datasets(
+        batch_size=train_cfg["batch_size"], epochs=train_cfg["epochs"],
+        steps_per_epoch=train_cfg["steps_per_epoch"], data_generator=data_generator)
 
     # Build model
     print("Building model...")
     model = build_resnet(
         input_shape=(32, 32, 3),
         num_classes=10,
-        stage_blocks=STAGE_BLOCKS,
-        stage_filters=STAGE_FILTERS,
-        weight_decay=WEIGHT_DECAY
+        stage_blocks=model_cfg["stage_blocks"],
+        stage_filters=model_cfg["stage_filters"],
+        weight_decay=train_cfg["weight_decay"]
     )
     model.summary()
 
     # Learning rate scheduler
-    decay_steps = STEPS_PER_EPOCH * EPOCHS
+    decay_steps = train_cfg["steps_per_epoch"] * train_cfg["epochs"]
     lr_scheduler = tf.keras.optimizers.schedules.CosineDecay(
-        initial_learning_rate=INITIAL_LR,
+        initial_learning_rate=train_cfg["initial_lr"],
         decay_steps=decay_steps,
-        alpha=MIN_LR / INITIAL_LR  # Ensures the lowest LR is MIN_LR
+        alpha=train_cfg["min_lr"] / train_cfg["initial_lr"]  # Ensures the lowest LR is MIN_LR
     )
 
     # Optimizer and Compilation
     # Note: Weight decay is handled via kernel_regularizer in the model layers
     optimizer = tf.keras.optimizers.SGD(
         learning_rate=lr_scheduler,
-        momentum=MOMENTUM
+        momentum=train_cfg["momentum"]
     )
 
     model.compile(
@@ -65,15 +72,15 @@ def main():
     )
 
     if resume:
-        checkpoint_path = os.path.join(CHECKPOINT_DIR, "last_checkpoint.keras")
+        checkpoint_path = os.path.join(train_cfg['checkpoint_dir'], "last_checkpoint.keras")
         print("Loading existing model checkpoint...")
         model = tf.keras.models.load_model(checkpoint_path)
-        initial_epoch = int(model.optimizer.iterations.numpy() // STEPS_PER_EPOCH)
+        initial_epoch = int(model.optimizer.iterations.numpy() // train_cfg["steps_per_epoch"])
         print(f"Continue training from epoch {initial_epoch}")
 
     # Callbacks
     checkpoint_cb_best = tf.keras.callbacks.ModelCheckpoint(
-        filepath=os.path.join(CHECKPOINT_DIR, 'best_model.keras'),
+        filepath=os.path.join(train_cfg['checkpoint_dir'], 'best_model.keras'),
         save_best_only=True,
         save_weights_only=False,
         monitor='val_accuracy',
@@ -83,7 +90,7 @@ def main():
 
     checkpoint_cb = tf.keras.callbacks.ModelCheckpoint(
         filepath=os.path.join(
-            CHECKPOINT_DIR,
+            train_cfg['checkpoint_dir'],
             'last_checkpoint.keras'
         ),
         save_weights_only=False,
@@ -94,27 +101,27 @@ def main():
     print("Starting training...")
     model.fit(
         train_dataset,
-        epochs=EPOCHS,
+        epochs=train_cfg["epochs"],
         initial_epoch=initial_epoch,
-        steps_per_epoch=STEPS_PER_EPOCH,
+        steps_per_epoch=train_cfg["steps_per_epoch"],
         validation_data=val_dataset,
         callbacks=[checkpoint_cb, checkpoint_cb_best]
     )
 
-    history_path = os.path.join(CHECKPOINT_DIR, "history.json")
+    history_path = os.path.join(train_cfg['checkpoint_dir'], "history.json")
     with open(history_path, "w") as f:
         json.dump(model.history.history, f)
 
     # Evaluation
     print("Evaluating on test set...")
     # Load the best weights before testing
-    model = tf.keras.models.load_model(os.path.join(CHECKPOINT_DIR, 'best_model.keras'))
+    model = tf.keras.models.load_model(os.path.join(train_cfg['checkpoint_dir'], 'best_model.keras'))
     _, test_acc = model.evaluate(test_dataset)
     print(f"Test Accuracy: {test_acc:.4f}")
 
     # Save evaluation results on test set
     evaluation_dict = {"test_accuracy": test_acc}
-    evaluation_path = os.path.join(CHECKPOINT_DIR, "evaluation.json")
+    evaluation_path = os.path.join(train_cfg['checkpoint_dir'], "evaluation.json")
     with open(evaluation_path, "w") as f:
         json.dump(evaluation_dict, f)
 
