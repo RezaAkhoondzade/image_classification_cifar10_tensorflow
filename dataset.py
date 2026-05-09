@@ -14,7 +14,7 @@ import tensorflow as tf
 from tensorflow.keras.datasets import cifar10
 
 
-def load_datasets(batch_size, epochs, steps_per_epoch, data_generator):
+def load_and_config_datasets(batch_size, epochs, steps_per_epoch, data_generator):
     """
     Loads CIFAR-10 and constructs optimized tf.data pipelines.
     Splits out a validation set and applies parallel mapping and prefetching.

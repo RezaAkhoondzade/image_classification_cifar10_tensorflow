@@ -4,7 +4,7 @@ import yaml
 import shutil
 import tensorflow as tf
 from data_generator import DataGenerator
-from dataset import load_datasets
+from dataset import load_and_config_datasets
 from model import build_resnet
 
 
@@ -35,7 +35,7 @@ def main():
 
     # Get datasets and config tf.data.Dataset
     print("Preparing datasets...")
-    train_dataset, val_dataset, test_dataset = load_datasets(
+    train_dataset, val_dataset, test_dataset = load_and_config_datasets(
         batch_size=train_cfg["batch_size"], epochs=train_cfg["epochs"],
         steps_per_epoch=train_cfg["steps_per_epoch"], data_generator=data_generator)
 
