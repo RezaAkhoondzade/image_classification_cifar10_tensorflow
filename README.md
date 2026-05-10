@@ -1,6 +1,7 @@
 # ResNet on CIFAR‑10 (TensorFlow 2)
 
-This project implements a small, modular ResNet‑style image classifier for the CIFAR‑10 dataset using TensorFlow 2. The codebase is intended for learning, experimentation, and easy extension.
+This project implements a small, modular ResNet‑style image classifier for the CIFAR‑10 dataset using TensorFlow 2.
+The codebase is intended for learning, experimentation, and easy extension.
 
 ---
 
@@ -21,7 +22,8 @@ This makes the project useful for students, researchers, and anyone practicing e
 
 ### 1. Modular Code Structure
 
-- `dataset.py` – augmentations, normalization, tf.data
+- `dataset.py` – load cifar10 - config tf.data
+- `data_generator.py` – augmentations, normalization
 - `model.py` – residual blocks + ResNet builder
 - `main.py` – training loop, optimizer, LR schedule, evaluation
 
@@ -49,6 +51,7 @@ The architecture is controlled by:
 
 - `STAGE_BLOCKS`
 - `STAGE_FILTERS`
+- `TODO: BASIC_BLOCK (to be added)`
 
 Default configuration:
 
@@ -64,7 +67,7 @@ This produces a ResNet‑20‑like model with ~0.28M parameters.
 - SGD + Momentum
 - L2 weight decay
 - Cosine decay learning rate
-- ModelCheckpoint saving best validation accuracy
+- ModelCheckpoint saving best validation accuracy and last epoch
 - Validation split: **45k train / 5k val / 10k test**
 
 ---
@@ -77,7 +80,7 @@ This produces a ResNet‑20‑like model with ~0.28M parameters.
 ### Install
 
 ```bash
-pip install tensorflow
+pip install tensorflow keras pylint PyYaml
 ```
 
 ## Usage

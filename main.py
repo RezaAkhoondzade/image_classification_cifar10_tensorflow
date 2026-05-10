@@ -1,16 +1,34 @@
+"""
+main.py
+
+Main execution script for training and evaluating the ResNet model on the dataset.
+
+Design principles:
+Configuration is centralized and loaded from a YAML file (`config.yaml`).
+Training state is managed to allow automatic resumption from existing checkpoints.
+Learning rate follows a Cosine Decay schedule.
+Checkpoints, training history, and configurations are saved for reproducibility.
+Evaluates the best-performing model (based on validation accuracy) on a dedicated test set.
+"""
+
 import os
 import json
-import yaml
 import shutil
-import tensorflow as tf
+import yaml
+import keras
 from data_generator import DataGenerator
 from dataset import load_and_config_datasets
 from model import build_resnet
 
 
 def main():
+    """
+    Executes the complete training and evaluation pipeline.
+    Loads configuration, prepares datasets, builds the model, handles resume,
+    trains the network, and finally evaluates the best model on the test dataset.
+    """
     # Load configuration from YAML file
-    with open("config.yaml", "r") as f:
+    with open("config.yaml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Extract configs for easier access
@@ -52,7 +70,7 @@ def main():
 
     # Learning rate scheduler
     decay_steps = train_cfg["steps_per_epoch"] * train_cfg["epochs"]
-    lr_scheduler = tf.keras.optimizers.schedules.CosineDecay(
+    lr_scheduler = keras.optimizers.schedules.CosineDecay(
         initial_learning_rate=train_cfg["initial_lr"],
         decay_steps=decay_steps,
         alpha=train_cfg["min_lr"] / train_cfg["initial_lr"]  # Ensures the lowest LR is MIN_LR
@@ -60,7 +78,7 @@ def main():
 
     # Optimizer and Compilation
     # Note: Weight decay is handled via kernel_regularizer in the model layers
-    optimizer = tf.keras.optimizers.SGD(
+    optimizer = keras.optimizers.SGD(
         learning_rate=lr_scheduler,
         momentum=train_cfg["momentum"]
     )
@@ -74,12 +92,12 @@ def main():
     if resume:
         checkpoint_path = os.path.join(train_cfg['checkpoint_dir'], "last_checkpoint.keras")
         print("Loading existing model checkpoint...")
-        model = tf.keras.models.load_model(checkpoint_path)
+        model = keras.models.load_model(checkpoint_path)
         initial_epoch = int(model.optimizer.iterations.numpy() // train_cfg["steps_per_epoch"])
         print(f"Continue training from epoch {initial_epoch}")
 
     # Callbacks
-    checkpoint_cb_best = tf.keras.callbacks.ModelCheckpoint(
+    checkpoint_cb_best = keras.callbacks.ModelCheckpoint(
         filepath=os.path.join(train_cfg['checkpoint_dir'], 'best_model.keras'),
         save_best_only=True,
         save_weights_only=False,
@@ -88,7 +106,7 @@ def main():
         verbose=1
     )
 
-    checkpoint_cb = tf.keras.callbacks.ModelCheckpoint(
+    checkpoint_cb = keras.callbacks.ModelCheckpoint(
         filepath=os.path.join(
             train_cfg['checkpoint_dir'],
             'last_checkpoint.keras'
@@ -109,20 +127,21 @@ def main():
     )
 
     history_path = os.path.join(train_cfg['checkpoint_dir'], "history.json")
-    with open(history_path, "w") as f:
+    with open(history_path, "w", encoding="utf-8") as f:
         json.dump(model.history.history, f)
 
     # Evaluation
     print("Evaluating on test set...")
     # Load the best weights before testing
-    model = tf.keras.models.load_model(os.path.join(train_cfg['checkpoint_dir'], 'best_model.keras'))
+    best_model_path = os.path.join(train_cfg['checkpoint_dir'],'best_model.keras')
+    model = keras.models.load_model(best_model_path)
     _, test_acc = model.evaluate(test_dataset)
     print(f"Test Accuracy: {test_acc:.4f}")
 
     # Save evaluation results on test set
     evaluation_dict = {"test_accuracy": test_acc}
     evaluation_path = os.path.join(train_cfg['checkpoint_dir'], "evaluation.json")
-    with open(evaluation_path, "w") as f:
+    with open(evaluation_path, "w", encoding="utf-8") as f:
         json.dump(evaluation_dict, f)
 
 

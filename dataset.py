@@ -11,7 +11,7 @@ Calculates explicit dataset repeats based on training requirements.
 """
 
 import tensorflow as tf
-from tensorflow.keras.datasets import cifar10
+from keras.datasets import cifar10
 
 
 def load_and_config_datasets(batch_size, epochs, steps_per_epoch, data_generator):

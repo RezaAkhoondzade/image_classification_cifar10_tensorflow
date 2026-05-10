@@ -8,7 +8,8 @@ All augmentations are applied before normalization.
 Images remain in the original 0-255 (float) pixel space during augmentation.
 Normalization is applied as the final preprocessing step.
 Color augmentations use SSD-style photometric distortion with randomized order.
-Spatial augmentation uses random padding, random cropping with preserving aspect ratio, and flipping.
+Spatial augmentation uses random padding, random cropping and flipping.
+Random cropping will preserve aspect ratio to a minimum/maximum ratio
 Normalization supports scaling to [0, 1], [-1, 1], or by dataset statistics.
 """
 
@@ -21,6 +22,13 @@ CIFAR10_STD  = tf.constant([0.2470, 0.2435, 0.2616], dtype=tf.float32)
 
 
 class DataGenerator:
+    """
+    Constructs and applies a configurable pipeline of image preprocessing and data augmentations.
+    Encapsulates spatial transformations (such as random padding, cropping, and resizing)
+    and photometric distortions
+    Finally create preprocess_train_data and preprocess_val_data to be mapped on `tf.data.Dataset`.
+    """
+
     def __init__(self, augment_cfg):
         """
         Constructor
@@ -83,7 +91,8 @@ class DataGenerator:
         area = h * w
 
         area_min, area_max = self.augment_cfg["crop_area_range"]
-        target_area = tf.random.uniform([], area_min, area_max) * area
+        scale = tf.random.uniform([], area_min, area_max)
+        target_area = scale * scale * area
 
         # Determine aspect ratio
         if self.augment_cfg["use_aspect_ratio"]:
@@ -148,7 +157,7 @@ class DataGenerator:
         # Choose cutout dimensions
         cutout_min = self.augment_cfg.get("cutout_min_size", 8)
         cutout_max = self.augment_cfg.get("cutout_max_size", 8)
-        cutout_size = tf.random.uniform(shape=(), minval=cutout_min, 
+        cutout_size = tf.random.uniform(shape=(), minval=cutout_min,
             maxval=cutout_max + 1, dtype=tf.int32)
 
         # Determine center coordinates
@@ -169,7 +178,7 @@ class DataGenerator:
         inside = inside_y & inside_x
 
         # Generate float mask
-        mask = tf.where(inside, tf.zeros_like(inside, dtype=image.dtype), 
+        mask = tf.where(inside, tf.zeros_like(inside, dtype=image.dtype),
             tf.ones_like(inside, dtype=image.dtype))
 
         # Expand and apply mask
