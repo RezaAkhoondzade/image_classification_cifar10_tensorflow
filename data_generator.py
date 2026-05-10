@@ -56,8 +56,8 @@ class DataGenerator:
         w = tf.cast(shape[1], tf.float32)
 
         # Computer random pad_h and pad_w in both dimensions
-        rmin, rmax = self.augment_cfg["pad_ratio_range"]
-        ratio = tf.random.uniform([2, ], rmin, rmax)
+        rmax = self.augment_cfg["pad_max_range"]
+        ratio = tf.random.uniform([2, ], 0., rmax)
         pad_h = tf.cast(h * ratio[0], tf.int32)
         pad_w = tf.cast(w * ratio[1], tf.int32)
 
@@ -90,16 +90,13 @@ class DataGenerator:
         w = tf.cast(shape[1], tf.float32)
         area = h * w
 
-        area_min, area_max = self.augment_cfg["crop_area_range"]
-        scale = tf.random.uniform([], area_min, area_max)
-        target_area = scale * scale * area
+        area_min = self.augment_cfg["crop_min_range"]
+        scale = tf.random.uniform([], area_min, 1.)
+        target_area = tf.square(scale) * area
 
         # Determine aspect ratio
-        if self.augment_cfg["use_aspect_ratio"]:
-            ar_min, ar_max = self.augment_cfg["aspect_ratio_range"]
-            aspect = tf.random.uniform([], ar_min, ar_max)
-        else:
-            aspect = w / h
+        ar_min, ar_max = self.augment_cfg["aspect_ratio_range"]
+        aspect = tf.random.uniform([], ar_min, ar_max)
 
         # Compute dimensions from area and aspect ratio
         crop_w = tf.sqrt(target_area * aspect)
@@ -272,8 +269,11 @@ class DataGenerator:
         image = tf.cast(image, tf.float32)
 
         # Apply spatial augmentations
+        # tf.print("original", tf.shape(image))
         image = self.random_pad(image)
+        # tf.print("after pad:", tf.shape(image))
         image = self.random_crop_with_traget_ratio(image)
+        # tf.print("after crop:", tf.shape(image))
         image = self.resize_image(image)
         image = self.random_cutout(image)
 

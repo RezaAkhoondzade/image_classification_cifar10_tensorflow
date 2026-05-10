@@ -12,6 +12,7 @@ Evaluates the best-performing model (based on validation accuracy) on a dedicate
 """
 
 import os
+import argparse
 import json
 import shutil
 import yaml
@@ -27,8 +28,16 @@ def main():
     Loads configuration, prepares datasets, builds the model, handles resume,
     trains the network, and finally evaluates the best model on the test dataset.
     """
+    # Parse config path from input arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="config.yaml",
+        help="Path to configuration YAML file")
+    args = parser.parse_args()
+
+    config_path = args.config
+
     # Load configuration from YAML file
-    with open("config.yaml", "r", encoding="utf-8") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Extract configs for easier access
@@ -39,14 +48,18 @@ def main():
     # Prepare checkpoint folder and resume variables
     resume = False
     initial_epoch = 0
-    if not os.path.exists(train_cfg['checkpoint_dir']):
-        os.mkdir(train_cfg['checkpoint_dir'])
-    else:
+
+    os.makedirs(train_cfg['checkpoint_dir'], exist_ok=True)
+
+    checkpoint_path = os.path.join(train_cfg['checkpoint_dir'],
+        "last_checkpoint.keras")
+
+    if os.path.exists(checkpoint_path):
         resume = True
 
     # Copy config file into checkpoint folder
     destination_path = os.path.join(train_cfg['checkpoint_dir'], 'config.yaml')
-    shutil.copy2("config.yaml", destination_path)
+    shutil.copy2(config_path, destination_path)
 
     # Create data generator
     data_generator = DataGenerator(augment_cfg)
@@ -59,13 +72,9 @@ def main():
 
     # Build model
     print("Building model...")
-    model = build_resnet(
-        input_shape=(32, 32, 3),
-        num_classes=10,
-        stage_blocks=model_cfg["stage_blocks"],
-        stage_filters=model_cfg["stage_filters"],
-        weight_decay=train_cfg["weight_decay"]
-    )
+    model = build_resnet(input_shape=(32, 32, 3), num_classes=10,
+        stage_blocks=model_cfg["stage_blocks"], stage_filters=model_cfg["stage_filters"],
+        weight_decay=train_cfg["weight_decay"])
     model.summary()
 
     # Learning rate scheduler
@@ -99,32 +108,27 @@ def main():
     # Callbacks
     checkpoint_cb_best = keras.callbacks.ModelCheckpoint(
         filepath=os.path.join(train_cfg['checkpoint_dir'], 'best_model.keras'),
-        save_best_only=True,
-        save_weights_only=False,
-        monitor='val_accuracy',
-        mode='max',
-        verbose=1
+        save_best_only=True, save_weights_only=False, monitor='val_accuracy',
+        mode='max', verbose=1
     )
 
     checkpoint_cb = keras.callbacks.ModelCheckpoint(
-        filepath=os.path.join(
-            train_cfg['checkpoint_dir'],
-            'last_checkpoint.keras'
-        ),
-        save_weights_only=False,
-        save_freq='epoch'
-    )
+        filepath=os.path.join( train_cfg['checkpoint_dir'], 'last_checkpoint.keras'),
+        save_weights_only=False, save_freq='epoch')
+
+    csv_logger = keras.callbacks.CSVLogger(
+        os.path.join(train_cfg['checkpoint_dir'], 'training_log.csv'),
+        append=resume)
+
+    tensorboard_callback = keras.callbacks.TensorBoard(
+        log_dir=os.path.join(train_cfg['checkpoint_dir'], 'tensorboard'),
+        histogram_freq=1, write_graph=True, update_freq='epoch')
 
     # Training
     print("Starting training...")
-    model.fit(
-        train_dataset,
-        epochs=train_cfg["epochs"],
-        initial_epoch=initial_epoch,
-        steps_per_epoch=train_cfg["steps_per_epoch"],
-        validation_data=val_dataset,
-        callbacks=[checkpoint_cb, checkpoint_cb_best]
-    )
+    model.fit(train_dataset,epochs=train_cfg["epochs"], initial_epoch=initial_epoch,
+        steps_per_epoch=train_cfg["steps_per_epoch"], validation_data=val_dataset,
+        callbacks=[checkpoint_cb, checkpoint_cb_best, csv_logger, tensorboard_callback])
 
     history_path = os.path.join(train_cfg['checkpoint_dir'], "history.json")
     with open(history_path, "w", encoding="utf-8") as f:
