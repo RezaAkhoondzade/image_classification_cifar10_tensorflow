@@ -8,7 +8,6 @@ drive.mount('/content/drive')
 import os
 os.chdir('/content/drive/MyDrive/image_classification_tensorflow_project')
 
-!mkdir /root/.keras/
 !mkdir /root/.keras/datasets/
 !cp /content/drive/MyDrive/cifar_data/cifar-10-batches-py-target_archive /root/.keras/datasets/
 
