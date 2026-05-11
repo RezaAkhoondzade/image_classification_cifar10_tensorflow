@@ -68,7 +68,8 @@ def main():
     print("Preparing datasets...")
     train_dataset, val_dataset, test_dataset = load_and_config_datasets(
         batch_size=train_cfg["batch_size"], epochs=train_cfg["epochs"],
-        steps_per_epoch=train_cfg["steps_per_epoch"], data_generator=data_generator)
+        steps_per_epoch=train_cfg["steps_per_epoch"], data_generator=data_generator,
+        checkpoint_dir=train_cfg['checkpoint_dir'])
 
     # Build model
     print("Building model...")

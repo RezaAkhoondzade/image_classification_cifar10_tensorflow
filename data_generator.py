@@ -48,9 +48,6 @@ class DataGenerator:
         Outputs:
             padded image: Padded tensor. Shape: (H_padd, W_padd, C), Dtype: tf.float32
         """
-        if tf.random.uniform(()) > self.augment_cfg["pad_prob"]:
-            return image
-
         shape = tf.shape(image)
         h = tf.cast(shape[0], tf.float32)
         w = tf.cast(shape[1], tf.float32)
@@ -82,9 +79,6 @@ class DataGenerator:
         Outputs:
             cropped image: Tensor. Shape: (H_crop, W_crop, C), Dtype: tf.float32
         """
-        if tf.random.uniform(()) > self.augment_cfg["crop_prob"]:
-            return image
-
         shape = tf.shape(image)
         h = tf.cast(shape[0], tf.float32)
         w = tf.cast(shape[1], tf.float32)
@@ -195,6 +189,9 @@ class DataGenerator:
         Outputs:
             distorted image: Tensor. Shape: (H, W, C), Dtype: tf.float32
         """
+        # This is the base range for tf.image color augmentations.
+        image = tf.cast(image, tf.float32) / 255.0
+
         # Adjust brightness
         if tf.random.uniform(()) < self.augment_cfg["brightness_prob"]:
             image = tf.image.random_brightness(image, self.augment_cfg["brightness_delta"])
@@ -223,13 +220,13 @@ class DataGenerator:
                     self.augment_cfg["contrast_upper"])
 
         # Bound pixel values
-        image = tf.clip_by_value(image, 0.0, 255.0)
+        image = tf.clip_by_value(image, 0.0, 1.0)
         return image
-
 
     def normalize_image(self, image):
         """
-        Normalizes the image based on the selected configuration mode.
+        Applies the final normalization/standardization step.
+        Assumes input image is already scaled to the [0, 1] range.
         Modes include [0, 1] scaling, [-1, 1] scaling, or CIFAR-10 standardization.
 
         Inputs:
@@ -241,17 +238,36 @@ class DataGenerator:
 
         # Apply scaling logic
         if mode == "0_1":
-            image = image / 255.0
+            # Already in [0, 1], do nothing.
+            pass
         elif mode == "minus1_1":
-            image = (image / 127.5) - 1.0
+            image * 2.0 - 1.0
         elif mode == "cifar10":
-            image = image / 255.0
-            image = (image - CIFAR10_MEAN) / CIFAR10_STD
+            (image - CIFAR10_MEAN) / CIFAR10_STD
         else:
             raise ValueError(f"Unknown normalization mode: {mode}")
 
         return image
 
+    def unnormalize_image(self, image):
+        """
+        Reverses final_scaling_and_standardization to bring image back to [0, 1].
+        """
+        mode = self.augment_cfg["normalization"]
+        if mode == "0_1":
+            # Already [0, 1]
+            return image
+
+        elif mode == "minus1_1":
+            # Inverse of (x * 2.0 - 1.0) is (x + 1.0) / 2.0
+            return (image + 1.0) / 2.0
+
+        elif mode == "cifar10":
+            # Inverse of (x - mean) / std is (x * std) + mean
+            # Ensure CIFAR10_MEAN and CIFAR10_STD are accessible
+            return (image * CIFAR10_STD) + CIFAR10_MEAN
+
+        return image
 
     def preprocess_train_data(self, image, label):
         """
@@ -266,14 +282,11 @@ class DataGenerator:
             processed image: Tensor. Shape: (target_h, target_w, C), Dtype: tf.float32
             label: Label tensor. Shape: (1,), Dtype: tf.int64
         """
-        image = tf.cast(image, tf.float32)
-
         # Apply spatial augmentations
         # tf.print("original", tf.shape(image))
-        image = self.random_pad(image)
-        # tf.print("after pad:", tf.shape(image))
-        image = self.random_crop_with_traget_ratio(image)
-        # tf.print("after crop:", tf.shape(image))
+        if tf.random.uniform(()) < self.augment_cfg["pad_crop_prob"]:
+            image = self.random_pad(image)
+            image = self.random_crop_with_traget_ratio(image)
         image = self.resize_image(image)
         image = self.random_cutout(image)
 
@@ -300,7 +313,8 @@ class DataGenerator:
             normalized image: Tensor. Shape: (H, W, C), Dtype: tf.float32
             label: Label tensor. Shape: (1,), Dtype: tf.int64
         """
-        image = tf.cast(image, tf.float32)
+        # Cast and scale to the [0, 1] range first
+        image = tf.cast(image, tf.float32) / 255.0
         image = self.normalize_image(image)
 
         return image, label

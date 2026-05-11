@@ -1,5 +1,5 @@
 training:
-  checkpoint_dir: "checkpoints/resnet333_try1"
+  checkpoint_dir: "checkpoints/resnet333_try2"
   batch_size: 64
   epochs: 200
   steps_per_epoch: 700
@@ -15,7 +15,7 @@ model:
 augmentation:
   flip_prob: 0.5                # Probability of horizontal flip
   brightness_prob: 0.5          # Probability to apply random brightness
-  brightness_delta: 32.0        # Max delta for brightness adjustment
+  brightness_delta: 0.2         # Max delta for brightness adjustment
   contrast_prob: 0.5            # Probability to apply random contrast
   contrast_lower: 0.8           # Lower bound for contrast factor
   contrast_upper: 1.25          # Upper bound for contrast factor
@@ -25,14 +25,13 @@ augmentation:
   hue_prob: 0.5                 # Probability to apply random hue
   hue_delta: 0.1                # Max delta for hue adjustment
   target_size: [32, 32]         # Target output resolution
-  pad_prob: 0.8                 # Probability to apply random padding
+  pad_crop_prob: 0.8                 # Probability to apply random padding
   pad_max_range: 0.25           # Range for dynamic ratio padding
   pad_mode: "CONSTANT"          # Padding mode (e.g., REFLECT, CONSTANT)
-  crop_prob: 0.9                # Probability to apply random crop
-  crop_min_range: 0.6           # Range for crop area relative to original
-  aspect_ratio_range: [0.8, 1.25] # Range for crop aspect ratio
+  crop_min_range: 0.7           # Range for crop area relative to original
+  aspect_ratio_range: [0.66, 1.5] # Range for crop aspect ratio
   resize_method: "bilinear"     # Interpolation method for resize
   cutout_prob: 0.5              # Probability to apply cutout
   cutout_min_size: 4            # Minimum size of the cutout square
   cutout_max_size: 8            # Maximum size of the cutout square
-  normalization: "minus1_1"     # Mode: "0_1", "minus1_1", or "cifar10"
+  normalization: "cifar10"     # Mode: "0_1", "minus1_1", or "cifar10"
