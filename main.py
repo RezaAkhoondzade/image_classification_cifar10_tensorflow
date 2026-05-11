@@ -109,8 +109,14 @@ def main():
         print(f"Continue training from epoch {initial_epoch}")
 
     # Callbacks
-    checkpoint_cb_best = keras.callbacks.ModelCheckpoint(
-        filepath=os.path.join(train_cfg['checkpoint_dir'], 'best_model.keras'),
+    checkpoint_cb_best_loss = keras.callbacks.ModelCheckpoint(
+        filepath=os.path.join(train_cfg['checkpoint_dir'], 'best_model_loss.keras'),
+        save_best_only=True, save_weights_only=False, monitor='val_loss',
+        mode='min', verbose=1
+    )
+
+    checkpoint_cb_best_accuracy = keras.callbacks.ModelCheckpoint(
+        filepath=os.path.join(train_cfg['checkpoint_dir'], 'best_model_accuracy.keras'),
         save_best_only=True, save_weights_only=False, monitor='val_accuracy',
         mode='max', verbose=1
     )
@@ -131,7 +137,8 @@ def main():
     print("Starting training...")
     model.fit(train_dataset,epochs=train_cfg["epochs"], initial_epoch=initial_epoch,
         steps_per_epoch=train_cfg["steps_per_epoch"], validation_data=val_dataset,
-        callbacks=[checkpoint_cb, checkpoint_cb_best, csv_logger, tensorboard_callback])
+        callbacks=[checkpoint_cb, checkpoint_cb_best_loss, checkpoint_cb_best_accuracy,
+            csv_logger, tensorboard_callback])
 
     history_path = os.path.join(train_cfg['checkpoint_dir'], "history.json")
     with open(history_path, "w", encoding="utf-8") as f:
@@ -140,14 +147,26 @@ def main():
     # Evaluation
     print("Evaluating on test set...")
     # Load the best weights before testing
-    best_model_path = os.path.join(train_cfg['checkpoint_dir'],'best_model.keras')
+    best_model_path = os.path.join(train_cfg['checkpoint_dir'],'best_model_loss.keras')
     model = keras.models.load_model(best_model_path)
     _, test_acc = model.evaluate(test_dataset)
     print(f"Test Accuracy: {test_acc:.4f}")
 
     # Save evaluation results on test set
     evaluation_dict = {"test_accuracy": test_acc}
-    evaluation_path = os.path.join(train_cfg['checkpoint_dir'], "evaluation.json")
+    evaluation_path = os.path.join(train_cfg['checkpoint_dir'], "best_model_loss_result.json")
+    with open(evaluation_path, "w", encoding="utf-8") as f:
+        json.dump(evaluation_dict, f)
+
+    # Load the best weights before testing
+    best_model_path = os.path.join(train_cfg['checkpoint_dir'],'best_model_accuracy.keras')
+    model = keras.models.load_model(best_model_path)
+    _, test_acc = model.evaluate(test_dataset)
+    print(f"Test Accuracy: {test_acc:.4f}")
+
+    # Save evaluation results on test set
+    evaluation_dict = {"test_accuracy": test_acc}
+    evaluation_path = os.path.join(train_cfg['checkpoint_dir'], "best_model_accuracy_result.json")
     with open(evaluation_path, "w", encoding="utf-8") as f:
         json.dump(evaluation_dict, f)
 

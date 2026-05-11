@@ -26,7 +26,8 @@ CIFAR_10_CLASSES = [
 
 # TODO: save cifar-10 data in numpy arrays and load them instead of using tf.datasets
 # TODO: test that the order of color augmentations matter or not
-def visualize_batch(dataset, data_generator, checkpoint_dir, num_batches=3, num_images=9):
+def visualize_batch(dataset, data_generator, checkpoint_dir, num_batches=3,
+        num_images=9, imshow=False):
     """
     Visualizes a specified number of image batches from a tf.data.Dataset.
 
@@ -82,7 +83,8 @@ def visualize_batch(dataset, data_generator, checkpoint_dir, num_batches=3, num_
         # Save the figure to the checkpoint directory
         save_path = os.path.join(checkpoint_dir, f"batch_visual_{i}.png")
         plt.savefig(save_path)
-        # plt.show()
+        if imshow:
+            plt.show()
 
 
 def load_and_config_datasets(batch_size, epochs, steps_per_epoch, data_generator, checkpoint_dir):
