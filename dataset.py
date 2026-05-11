@@ -24,7 +24,37 @@ CIFAR_10_CLASSES = [
 ]
 
 
+# TODO: save cifar-10 data in numpy arrays and load them instead of using tf.datasets
+# TODO: test that the order of color augmentations matter or not
 def visualize_batch(dataset, data_generator, checkpoint_dir, num_batches=3, num_images=9):
+    """
+    Visualizes a specified number of image batches from a tf.data.Dataset.
+
+    This function iterates through a given number of batches, un-normalizes
+    the images using the provided data_generator, displays them in a grid,
+    and adds their corresponding CIFAR-10 class labels as titles.
+    The resulting visualizations are saved as PNG files in the specified
+    checkpoint directory.
+
+    Inputs:
+        dataset: A tf.data.Dataset containing batches of images and labels.
+                 Images are expected to be in a normalized float format,
+                 and labels should be integer class indices.
+        data_generator: An object (e.g., DataGenerator instance) that
+                        provides an `unnormalize_image` method to convert
+                        normalized images back to the $[0, 1]$ range for
+                        visualization.
+        checkpoint_dir: String, the path to the directory where the
+                        visualization images will be saved.
+        num_batches: Integer, the number of batches to visualize from the
+                     dataset. Default is $3$.
+        num_images: Integer, the maximum number of images to display per
+                    batch visualization. Default is $9$.
+
+    Outputs:
+        None: The function saves image files to disk and optionally displays
+              them using `plt.show()` (if uncommented).
+    """
     dataset = iter(dataset.take(num_batches))
     for i in range(num_batches):
         images, labels = next(dataset)

@@ -22,6 +22,8 @@ from dataset import load_and_config_datasets
 from model import build_resnet
 
 
+# TODO: add more monitoring and logging if necessary (model, config, results)
+# TODO: add Adam or AdamW to Optimizer options (with handling kernel reqularizers)
 def main():
     """
     Executes the complete training and evaluation pipeline.
