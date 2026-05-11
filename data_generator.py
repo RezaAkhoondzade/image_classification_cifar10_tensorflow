@@ -241,9 +241,9 @@ class DataGenerator:
             # Already in [0, 1], do nothing.
             pass
         elif mode == "minus1_1":
-            image * 2.0 - 1.0
+            image = image * 2.0 - 1.0
         elif mode == "cifar10":
-            (image - CIFAR10_MEAN) / CIFAR10_STD
+            image = (image - CIFAR10_MEAN) / CIFAR10_STD
         else:
             raise ValueError(f"Unknown normalization mode: {mode}")
 
@@ -251,7 +251,7 @@ class DataGenerator:
 
     def unnormalize_image(self, image):
         """
-        Reverses final_scaling_and_standardization to bring image back to [0, 1].
+        Reverses normalize_image to bring image back to [0, 1].
         """
         mode = self.augment_cfg["normalization"]
         if mode == "0_1":

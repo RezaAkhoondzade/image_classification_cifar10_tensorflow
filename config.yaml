@@ -1,5 +1,5 @@
 training:
-  checkpoint_dir: "checkpoints/resnet333_try2"
+  checkpoint_dir: "checkpoints/resnet333_try11"
   batch_size: 64
   epochs: 200
   steps_per_epoch: 700
