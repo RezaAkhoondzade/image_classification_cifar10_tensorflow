@@ -18,7 +18,7 @@ import tensorflow as tf
 
 # CIFAR-10 channel statistics computed from training set
 CIFAR10_MEAN = tf.constant([0.4914, 0.4822, 0.4465], dtype=tf.float32)
-CIFAR10_STD  = tf.constant([0.2470, 0.2435, 0.2616], dtype=tf.float32)
+CIFAR10_STD  = tf.constant([0.2023, 0.1994, 0.2010], dtype=tf.float32)
 
 
 class DataGenerator:
@@ -66,7 +66,12 @@ class DataGenerator:
 
         paddings = [[pad_top, pad_bottom], [pad_left, pad_right], [0, 0]]
 
-        return tf.pad(image, paddings, mode=self.augment_cfg["pad_mode"])
+        padded_image = tf.cond(
+            pred=tf.random.uniform(()) < 0.5,
+            true_fn=lambda: tf.pad(image, paddings, mode="CONSTANT"),
+            false_fn=lambda: tf.pad(image, paddings, mode="REFLECT")
+        )
+        return padded_image
 
     def random_crop_with_traget_ratio(self, image):
         """
@@ -239,7 +244,7 @@ class DataGenerator:
         # Apply scaling logic
         if mode == "0_1":
             # Already in [0, 1], do nothing.
-            pass
+            return image
         elif mode == "minus1_1":
             image = image * 2.0 - 1.0
         elif mode == "cifar10":
@@ -257,14 +262,11 @@ class DataGenerator:
         if mode == "0_1":
             # Already [0, 1]
             return image
-
         elif mode == "minus1_1":
             # Inverse of (x * 2.0 - 1.0) is (x + 1.0) / 2.0
             return (image + 1.0) / 2.0
-
         elif mode == "cifar10":
             # Inverse of (x - mean) / std is (x * std) + mean
-            # Ensure CIFAR10_MEAN and CIFAR10_STD are accessible
             return (image * CIFAR10_STD) + CIFAR10_MEAN
 
         return image
@@ -287,6 +289,8 @@ class DataGenerator:
         if tf.random.uniform(()) < self.augment_cfg["pad_crop_prob"]:
             image = self.random_pad(image)
             image = self.random_crop_with_traget_ratio(image)
+            # image = tf.image.resize_with_crop_or_pad(image, 40, 40)
+            # image = tf.image.random_crop(image, size=[32, 32, 3])
         image = self.resize_image(image)
         image = self.random_cutout(image)
 
