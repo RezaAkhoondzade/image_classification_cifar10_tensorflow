@@ -1,5 +1,5 @@
 training:
-  checkpoint_dir: "checkpoints/resnet_basic_333_try1"  # Directory to save model checkpoints
+  checkpoint_dir: "checkpoints/mbconv_333_try1"  # Directory to save model checkpoints
   batch_size: 64  # Number of samples per training batch
   epochs: 200  # Total number of training epochs
   steps_per_epoch: 700  # Number of batches to process before an epoch is considered finished
@@ -9,10 +9,10 @@ training:
   weight_decay: 0.0001  # L2 regularization factor for weights
 
 model:
-  block_type: "resnet_basic"  # Options: "resnet_basic", "preact_resnet",
+  block_type: "mbconv"  # Options: "resnet_basic", "preact_resnet",
     # "resnet_bottleneck", "inverted_residual", "mbconv", "convnext"
   repeats: [3, 3, 3]  # Number of times the block is repeated in each stage
-  filters: [16, 32, 64]  # Number of filters (channels) for each stage
+  filters: [24, 40, 80]  # Number of filters (channels) for each stage
   kernels: [3, 3, 3]  # Kernel size for convolutions in each stage
   strides: [1, 2, 2]  # Stride applied to the first block of each stage
   activation: "default"  # Options: "default", "relu", "relu6", "swish", "silu", "gelu"
