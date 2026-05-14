@@ -16,7 +16,8 @@ model:
   kernels: [3, 3, 3]  # Kernel size for convolutions in each stage
   strides: [1, 2, 2]  # Stride applied to the first block of each stage
   activation: "default"  # Options: "default", "relu", "relu6", "swish", "silu", "gelu"
-  kernel_initializer: "he_normal"  # Options: "he_normal", "glorot_uniform"
+  kernel_initializer: "he_uniform"  # Options: "he_normal", "he_uniform", "glorot_uniform"
+
 
 augmentation:
   flip_prob: 0.5  # Probability of horizontal flip
