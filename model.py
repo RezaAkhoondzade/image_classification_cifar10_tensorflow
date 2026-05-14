@@ -134,18 +134,16 @@ def resnet_bottleneck(x, filters, kernel_size=3, stride=1, activation="default",
 def inverted_residual(x, filters, kernel_size=3, stride=1, activation="default",
         weight_decay=1e-4, kernel_initializer="he_normal"):
     """MobileNetV2 Inverted Residual Block with expansion factor of 6."""
-    act_fn = get_activation(activation, "relu6") # MobileNetV2 uses relu6
+    act_fn = get_activation(activation, "relu6")  # MobileNetV2 uses relu6
     shortcut = x
     expansion = 6
-    in_channels = x.shape[-1]
-    expanded_filters = in_channels * expansion
+    expanded_filters = x.shape[-1] * expansion
 
-    if expansion != 1:
-        x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
-            use_bias=False, kernel_initializer=kernel_initializer,
-            kernel_regularizer=regularizers.l2(weight_decay))(x)
-        x = layers.BatchNormalization()(x)
-        x = layers.Activation(act_fn)(x)
+    x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(act_fn)(x)
 
     x = layers.DepthwiseConv2D(kernel_size=kernel_size, strides=stride, padding='same',
         use_bias=False, depthwise_initializer=kernel_initializer,
@@ -158,7 +156,7 @@ def inverted_residual(x, filters, kernel_size=3, stride=1, activation="default",
         kernel_regularizer=regularizers.l2(weight_decay))(x)
     x = layers.BatchNormalization()(x)
 
-    if stride == 1 and in_channels == filters:
+    if stride == 1 and x.shape[-1] == filters:
         x = layers.Add()([x, shortcut])
 
     return x
@@ -167,19 +165,17 @@ def inverted_residual(x, filters, kernel_size=3, stride=1, activation="default",
 def mbconv(x, filters, kernel_size=3, stride=1, activation="default",
         weight_decay=1e-4, kernel_initializer="he_normal"):
     """EfficientNet MBConv Block with SE mechanism."""
-    act_fn = get_activation(activation, "swish") # EfficientNet uses swish
+    act_fn = get_activation(activation, "swish")  # EfficientNet uses swish
     shortcut = x
     expansion = 6
     se_ratio = 0.25
-    in_channels = x.shape[-1]
-    expanded_filters = in_channels * expansion
+    expanded_filters = x.shape[-1] * expansion
 
-    if expansion != 1:
-        x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
-            use_bias=False, kernel_initializer=kernel_initializer,
-            kernel_regularizer=regularizers.l2(weight_decay))(x)
-        x = layers.BatchNormalization()(x)
-        x = layers.Activation(act_fn)(x)
+    x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(act_fn)(x)
 
     x = layers.DepthwiseConv2D(kernel_size=kernel_size, strides=stride, padding='same',
         use_bias=False, depthwise_initializer=kernel_initializer,
@@ -194,7 +190,7 @@ def mbconv(x, filters, kernel_size=3, stride=1, activation="default",
         kernel_regularizer=regularizers.l2(weight_decay))(x)
     x = layers.BatchNormalization()(x)
 
-    if stride == 1 and in_channels == filters:
+    if stride == 1 and x.shape[-1] == filters:
         x = layers.Add()([x, shortcut])
 
     return x
