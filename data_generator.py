@@ -287,11 +287,15 @@ class DataGenerator:
         # Apply spatial augmentations
         # tf.print("original", tf.shape(image))
         if tf.random.uniform(()) < self.augment_cfg["pad_crop_prob"]:
-            image = self.random_pad(image)
-            image = self.random_crop_with_traget_ratio(image)
-            # image = tf.image.resize_with_crop_or_pad(image, 40, 40)
-            # image = tf.image.random_crop(image, size=[32, 32, 3])
-        image = self.resize_image(image)
+            if self.augment_cfg["pad_crop_style"] == "imagenet":
+                image = tf.cast(image, tf.float32)
+                image = self.random_pad(image)
+                image = self.random_crop_with_traget_ratio(image)
+                image = self.resize_image(image)
+            elif self.augment_cfg["pad_crop_style"] == "cifar10":
+                image = tf.image.resize_with_crop_or_pad(image, 40, 40)
+                image = tf.image.random_crop(image, size=[32, 32, 3])
+
         image = self.random_cutout(image)
 
         # Handle random flipping
