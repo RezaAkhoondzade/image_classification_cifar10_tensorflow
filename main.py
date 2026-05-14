@@ -19,7 +19,7 @@ import yaml
 import keras
 from data_generator import DataGenerator
 from dataset import load_and_config_datasets
-from model import build_resnet
+from model import build_model
 
 
 # TODO: add more monitoring and logging if necessary (model, config, results)
@@ -75,8 +75,10 @@ def main():
 
     # Build model
     print("Building model...")
-    model = build_resnet(input_shape=(32, 32, 3), num_classes=10,
-        stage_blocks=model_cfg["stage_blocks"], stage_filters=model_cfg["stage_filters"],
+    model = build_model(input_shape=(32, 32, 3), num_classes=10,
+        block_type=model_cfg["block_type"], repeats=model_cfg["repeats"],
+        filters=model_cfg["filters"], kernels=model_cfg["kernels"],
+        strides=model_cfg["strides"], activation=model_cfg["activation"],
         weight_decay=train_cfg["weight_decay"])
     model.summary()
 
@@ -90,10 +92,8 @@ def main():
 
     # Optimizer and Compilation
     # Note: Weight decay is handled via kernel_regularizer in the model layers
-    optimizer = keras.optimizers.SGD(
-        learning_rate=lr_scheduler,
-        momentum=train_cfg["momentum"]
-    )
+    optimizer = keras.optimizers.SGD(learning_rate=lr_scheduler,
+        momentum=train_cfg["momentum"])
 
     model.compile(
         optimizer=optimizer,

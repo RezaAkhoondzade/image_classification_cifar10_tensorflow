@@ -1,93 +1,283 @@
 """
 model.py
 
-Implementation of a customizable ResNet architecture for image classification.
+Implementation of a highly modular CNN architecture for image classification.
 
 Design principles:
-Uses a standard residual block with two $3 \times 3$ convolutions.
-Shortcut connections use $1 \times 1$ convolutions when spatial dimensions or channel counts change.
-Batch normalization and ReLU activations are applied throughout the network.
-L2 weight decay is consistently applied to all convolutional and dense layers.
-Network structure is dynamically built using tuples for stage blocks and filter configurations.
+A Block Registry pattern dynamically selects structural building blocks.
+Available blocks: ResNet (Basic, PreAct, Bottleneck), MobileNetV2 (Inverted Residual),
+EfficientNet (MBConv), and ConvNeXt.
+Squeeze-and-Excitation (SE) is integrated where applicable.
+Shortcut connections use 1x1 convolutions when spatial dimensions or channel counts change.
+Standard L2 regularization is applied consistently to learnable weights. Compatible with SGD
+Network structure is built dynamically using arrays for repeats, filters, kernels, and strides.
 """
 
 from keras import layers, models, regularizers
 
 
-def residual_block(x, filters, stride=1, weight_decay=0e-4):
-    """
-    Constructs a standard residual block with two convolutional layers and a shortcut connection.
-    If the spatial dimensions or number of filters change,
-        a 1x1 convolution is applied to the shortcut path to match dimensions.
+def get_activation(activation_name, default_name):
+    """Helper to resolve the activation function."""
+    if activation_name == "default" or activation_name is None:
+        return default_name
+    return activation_name
 
-    Inputs:
-        x: Input tensor. Shape: (B, H, W, C_in), Dtype: tf.float32
-        filters: Number of filters for the convolutional layers. Dtype: int
-        stride: Stride size for the first convolutional layer. Dtype: int
-        weight_decay: L2 regularization factor. Dtype: float
-    Outputs:
-        output tensor: The output of the residual block.
-            Shape: (B, H/stride, W/stride, filters), Dtype: tf.float32
-    """
-    shortcut = x
 
-    # First convolution layer
-    x = layers.Conv2D(filters, kernel_size=3, strides=stride, padding='same',
-        use_bias=False, kernel_regularizer=regularizers.l2(weight_decay))(x)
+def _projection_shortcut(x, filters, stride, weight_decay, kernel_initializer):
+    """Creates a 1x1 projection shortcut to match dimensions."""
+    x = layers.Conv2D(filters, 1, stride, 'same', use_bias=False,
+        kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
     x = layers.BatchNormalization()(x)
-    x = layers.Activation('relu')(x)
-
-    # Second convolution layer
-    x = layers.Conv2D(filters, kernel_size=3, strides=1, padding='same',
-        use_bias=False, kernel_regularizer=regularizers.l2(weight_decay))(x)
-    x = layers.BatchNormalization()(x)
-
-    # Adjust shortcut if dimensions change
-    if stride != 1 or shortcut.shape[-1] != filters:
-        shortcut = layers.Conv2D(filters, kernel_size=1, strides=stride,
-            padding='same', use_bias=False,
-            kernel_regularizer=regularizers.l2(weight_decay))(shortcut)
-        shortcut = layers.BatchNormalization()(shortcut)
-
-    # Add shortcut to the main path
-    x = layers.Add()([x, shortcut])
-    x = layers.Activation('relu')(x)
     return x
 
-def build_resnet(input_shape=(32, 32, 3), num_classes=10, stage_blocks=(3, 3, 3),
-        stage_filters=(16, 32, 64), weight_decay=1e-4):
-    """
-    Builds a customizable ResNet model based on the provided stage configurations.
-    The network begins with an initial convolution, followed by a sequence of residual stages,
-    and concludes with global average pooling and a dense classification layer.
 
-    Inputs:
-        input_shape: Tuple defining the shape of input images. Dtype: tuple of ints
-        num_classes: Number of output classes for the final dense layer. Dtype: int
-        stage_blocks: Tuple for the number of residual blocks in each stage. Dtype: tuple of ints
-        stage_filters: Tuple for the number of filters for each stage. Dtype: tuple of ints
-        weight_decay: L2 regularization factor applied to all learnable weights. Dtype: float
-    Outputs:
-        model: Keras Model instance. Dtype: tf.keras.models.Model
-    """
-    # Input Layer and Initial Convolution
+def se_block(x, filters, se_ratio=0.25, kernel_initializer="he_normal"):
+    """Squeeze-and-Excitation block. Activations are strictly relu and sigmoid."""
+    reduced_filters = max(1, int(filters * se_ratio))
+    se = layers.GlobalAveragePooling2D(keepdims=True)(x)
+    se = layers.Conv2D(reduced_filters, kernel_size=1, activation='relu',
+        use_bias=True, kernel_initializer=kernel_initializer)(se)
+    se = layers.Conv2D(filters, kernel_size=1, activation='sigmoid',
+        use_bias=True, kernel_initializer=kernel_initializer)(se)
+    return layers.Multiply()([x, se])
+
+
+def resnet_basic(x, filters, kernel_size=3, stride=1, activation="default",
+        weight_decay=1e-4, kernel_initializer="he_normal"):
+    """Standard ResNet Basic Block."""
+    act_fn = get_activation(activation, "relu")
+    shortcut = x
+
+    x = layers.Conv2D(filters, kernel_size=kernel_size, strides=stride, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(act_fn)(x)
+
+    x = layers.Conv2D(filters, kernel_size=kernel_size, strides=1, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+
+    if stride != 1 or shortcut.shape[-1] != filters:
+        shortcut = _projection_shortcut(shortcut, filters, stride,
+            weight_decay, kernel_initializer)
+
+    x = layers.Add()([x, shortcut])
+    x = layers.Activation(act_fn)(x)
+    return x
+
+
+def preact_resnet(x, filters, kernel_size=3, stride=1, activation="default",
+        weight_decay=1e-4, kernel_initializer="he_normal"):
+    """Pre-Activation ResNet Block."""
+    act_fn = get_activation(activation, "relu")
+    shortcut = x
+
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(act_fn)(x)
+
+    if stride != 1 or shortcut.shape[-1] != filters:
+        shortcut = layers.Conv2D(filters, kernel_size=1, strides=stride,
+            padding='same', use_bias=False, kernel_initializer=kernel_initializer,
+            kernel_regularizer=regularizers.l2(weight_decay))(x)
+
+    x = layers.Conv2D(filters, kernel_size=kernel_size, strides=stride, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(act_fn)(x)
+    x = layers.Conv2D(filters, kernel_size=kernel_size, strides=1, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+
+    x = layers.Add()([x, shortcut])
+    return x
+
+
+def resnet_bottleneck(x, filters, kernel_size=3, stride=1, activation="default",
+        weight_decay=1e-4, kernel_initializer="he_normal"):
+    """ResNet Bottleneck Block with expansion factor of 4."""
+    act_fn = get_activation(activation, "relu")
+    shortcut = x
+    expansion = 4
+    expanded_filters = filters * expansion
+
+    x = layers.Conv2D(filters, kernel_size=1, strides=1, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(act_fn)(x)
+
+    x = layers.Conv2D(filters, kernel_size=kernel_size, strides=stride, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(act_fn)(x)
+
+    x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+
+    if stride != 1 or shortcut.shape[-1] != expanded_filters:
+        shortcut = _projection_shortcut(shortcut, expanded_filters, stride,
+            weight_decay, kernel_initializer)
+
+    x = layers.Add()([x, shortcut])
+    x = layers.Activation(act_fn)(x)
+    return x
+
+
+def inverted_residual(x, filters, kernel_size=3, stride=1, activation="default",
+        weight_decay=1e-4, kernel_initializer="he_normal"):
+    """MobileNetV2 Inverted Residual Block with expansion factor of 6."""
+    act_fn = get_activation(activation, "relu6") # MobileNetV2 uses relu6
+    shortcut = x
+    expansion = 6
+    in_channels = x.shape[-1]
+    expanded_filters = in_channels * expansion
+
+    if expansion != 1:
+        x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
+            use_bias=False, kernel_initializer=kernel_initializer,
+            kernel_regularizer=regularizers.l2(weight_decay))(x)
+        x = layers.BatchNormalization()(x)
+        x = layers.Activation(act_fn)(x)
+
+    x = layers.DepthwiseConv2D(kernel_size=kernel_size, strides=stride, padding='same',
+        use_bias=False, depthwise_initializer=kernel_initializer,
+        depthwise_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(act_fn)(x)
+
+    x = layers.Conv2D(filters, kernel_size=1, strides=1, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+
+    if stride == 1 and in_channels == filters:
+        x = layers.Add()([x, shortcut])
+
+    return x
+
+
+def mbconv(x, filters, kernel_size=3, stride=1, activation="default",
+        weight_decay=1e-4, kernel_initializer="he_normal"):
+    """EfficientNet MBConv Block with SE mechanism."""
+    act_fn = get_activation(activation, "swish") # EfficientNet uses swish
+    shortcut = x
+    expansion = 6
+    se_ratio = 0.25
+    in_channels = x.shape[-1]
+    expanded_filters = in_channels * expansion
+
+    if expansion != 1:
+        x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
+            use_bias=False, kernel_initializer=kernel_initializer,
+            kernel_regularizer=regularizers.l2(weight_decay))(x)
+        x = layers.BatchNormalization()(x)
+        x = layers.Activation(act_fn)(x)
+
+    x = layers.DepthwiseConv2D(kernel_size=kernel_size, strides=stride, padding='same',
+        use_bias=False, depthwise_initializer=kernel_initializer,
+        depthwise_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(act_fn)(x)
+
+    x = se_block(x, expanded_filters, se_ratio, kernel_initializer=kernel_initializer)
+
+    x = layers.Conv2D(filters, kernel_size=1, strides=1, padding='same',
+        use_bias=False, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+
+    if stride == 1 and in_channels == filters:
+        x = layers.Add()([x, shortcut])
+
+    return x
+
+
+def convnext(x, filters, kernel_size=5, stride=1, activation="default",
+        weight_decay=1e-4, kernel_initializer="he_normal"):
+    """ConvNeXt Block adapted for CIFAR."""
+    act_fn = get_activation(activation, "gelu") # ConvNeXt uses gelu
+    shortcut = x
+    expansion = 4
+    expanded_filters = filters * expansion
+
+    x = layers.DepthwiseConv2D(kernel_size=kernel_size, strides=stride, padding='same',
+        use_bias=True, depthwise_initializer=kernel_initializer,
+        depthwise_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.LayerNormalization(epsilon=1e-6)(x)
+
+    x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
+        use_bias=True, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.Activation(act_fn)(x)
+
+    x = layers.Conv2D(filters, kernel_size=1, strides=1, padding='same',
+        use_bias=True, kernel_initializer=kernel_initializer,
+        kernel_regularizer=regularizers.l2(weight_decay))(x)
+
+    if stride != 1 or shortcut.shape[-1] != filters:
+        shortcut = layers.Conv2D(filters, kernel_size=1, strides=stride,
+            padding='same', use_bias=False, kernel_initializer=kernel_initializer,
+            kernel_regularizer=regularizers.l2(weight_decay))(shortcut)
+        shortcut = layers.LayerNormalization(epsilon=1e-6)(shortcut)
+
+    x = layers.Add()([x, shortcut])
+    return x
+
+
+BLOCK_REGISTRY = {
+    "resnet_basic": resnet_basic,
+    "preact_resnet": preact_resnet,
+    "resnet_bottleneck": resnet_bottleneck,
+    "inverted_residual": inverted_residual,
+    "mbconv": mbconv,
+    "convnext": convnext
+}
+
+
+def build_model(input_shape=(32, 32, 3), num_classes=10, block_type="mbconv",
+        repeats=[2, 3, 4], filters=[24, 40, 80], kernels=[3, 3, 3], strides=[1, 2, 2],
+        activation="default", weight_decay=1e-4, kernel_initializer="he_normal"):
+
+    if block_type not in BLOCK_REGISTRY:
+        raise ValueError(f"block_type '{block_type}' not found in registry.")
+
+    block_fn = BLOCK_REGISTRY[block_type]
+
+    # Resolve the stem activation based on the default block type used
+    stem_act_fn = get_activation(activation, "relu")
+
     inputs = layers.Input(shape=input_shape)
-    x = layers.Conv2D(filters=stage_filters[0], kernel_size=3, strides=1,
-        padding='same', use_bias=False,
+
+    x = layers.Conv2D(filters=filters[0], kernel_size=3, strides=1,
+        padding='same', use_bias=False, kernel_initializer=kernel_initializer,
         kernel_regularizer=regularizers.l2(weight_decay))(inputs)
     x = layers.BatchNormalization()(x)
-    x = layers.Activation('relu')(x)
+    x = layers.Activation(stem_act_fn)(x)
 
-    # Residual Stages
-    for stage_idx, (num_blocks, filters) in enumerate(zip(stage_blocks, stage_filters)):
-        for block_idx in range(num_blocks):
-            # Downsample on the first block of stages after the first one
-            stride = 2 if stage_idx > 0 and block_idx == 0 else 1
-            x = residual_block(x, filters, stride=stride, weight_decay=weight_decay)
+    num_stages = len(repeats)
+    for stage_idx in range(num_stages):
+        stage_repeats = repeats[stage_idx]
+        stage_filter = filters[stage_idx]
+        stage_kernel = kernels[stage_idx]
+        stage_stride = strides[stage_idx]
 
-    # Global Average Pooling and Dense output
+        for block_idx in range(stage_repeats):
+            current_stride = stage_stride if block_idx == 0 else 1
+            x = block_fn(x, filters=stage_filter, kernel_size=stage_kernel,
+                stride=current_stride, activation=activation,
+                weight_decay=weight_decay, kernel_initializer=kernel_initializer)
+
     x = layers.GlobalAveragePooling2D()(x)
     outputs = layers.Dense(num_classes, activation='softmax',
+        kernel_initializer=kernel_initializer,
         kernel_regularizer=regularizers.l2(weight_decay))(x)
 
     model = models.Model(inputs, outputs)
