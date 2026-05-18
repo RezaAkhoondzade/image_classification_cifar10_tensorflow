@@ -16,6 +16,7 @@ import argparse
 import json
 import shutil
 import yaml
+import tensorflow as tf
 import keras
 from data_generator import DataGenerator
 from dataset import load_and_config_datasets
@@ -39,6 +40,8 @@ def main():
     config_path = args.config
 
     # Load configuration from YAML file
+    with open(config_path, "r", encoding="utf-8") as f:
+        config_str = f.read()
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
@@ -75,11 +78,8 @@ def main():
 
     # Build model
     print("Building model...")
-    model = build_model(input_shape=(32, 32, 3), num_classes=10,
-        block_type=model_cfg["block_type"], repeats=model_cfg["repeats"],
-        filters=model_cfg["filters"], kernels=model_cfg["kernels"],
-        strides=model_cfg["strides"], activation=model_cfg["activation"],
-        weight_decay=train_cfg["weight_decay"])
+    model_cfg["weight_decay"] = train_cfg["weight_decay"]
+    model = build_model(model_cfg, input_shape=(32, 32, 3), num_classes=10)
     model.summary()
 
     # Learning rate scheduler
@@ -149,26 +149,41 @@ def main():
     # Load the best weights before testing
     best_model_path = os.path.join(train_cfg['checkpoint_dir'],'best_model_loss.keras')
     model = keras.models.load_model(best_model_path)
-    _, test_acc = model.evaluate(test_dataset)
-    print(f"Test Accuracy: {test_acc:.4f}")
+    _, best_model_loss_test_accuracy = model.evaluate(test_dataset)
+    print(f"Test Accuracy: {best_model_loss_test_accuracy:.4f}")
 
     # Save evaluation results on test set
-    evaluation_dict = {"test_accuracy": test_acc}
-    evaluation_path = os.path.join(train_cfg['checkpoint_dir'], "best_model_loss_result.json")
+    evaluation_dict = {"test_accuracy": best_model_loss_test_accuracy}
+    evaluation_path = os.path.join(train_cfg['checkpoint_dir'],"best_model_loss_result.json")
     with open(evaluation_path, "w", encoding="utf-8") as f:
         json.dump(evaluation_dict, f)
 
     # Load the best weights before testing
     best_model_path = os.path.join(train_cfg['checkpoint_dir'],'best_model_accuracy.keras')
     model = keras.models.load_model(best_model_path)
-    _, test_acc = model.evaluate(test_dataset)
-    print(f"Test Accuracy: {test_acc:.4f}")
+    _, best_model_accucary_test_accuracy = model.evaluate(test_dataset)
+    print(f"Test Accuracy: {best_model_accucary_test_accuracy:.4f}")
 
     # Save evaluation results on test set
-    evaluation_dict = {"test_accuracy": test_acc}
-    evaluation_path = os.path.join(train_cfg['checkpoint_dir'], "best_model_accuracy_result.json")
+    evaluation_dict = {"test_accuracy": best_model_accucary_test_accuracy}
+    evaluation_path = os.path.join(train_cfg['checkpoint_dir'],
+        "best_model_accuracy_result.json")
     with open(evaluation_path, "w", encoding="utf-8") as f:
         json.dump(evaluation_dict, f)
+
+    # Write metrics on tensorboard
+    tb_log_dir = os.path.join(train_cfg['checkpoint_dir'], 'tensorboard')
+
+    with tf.summary.create_file_writer(tb_log_dir).as_default():
+
+        # Log raw YAML text to the "Text" tab
+        tf.summary.text("Experiment_Configuration", config_str, step=0)
+
+        # Log final test accuracy to the HParams dashboard
+        tf.summary.scalar('best_model_loss_test_accuracy',
+            best_model_loss_test_accuracy, step=1)
+        tf.summary.scalar('best_model_accucary_test_accuracy',
+            best_model_accucary_test_accuracy, step=1)
 
 
 if __name__ == '__main__':

@@ -9,6 +9,8 @@ training:
   weight_decay: 0.0001  # L2 regularization factor for weights
 
 model:
+  stem_conv_filters: 16  # Number of filters for the initial (stem) convolution layer
+  stem_conv_stride: 1  # Stride applied to the initial (stem) convolution layer
   block_type: "mbconv"  # Options: "resnet_basic", "preact_resnet",
     # "resnet_bottleneck", "inverted_residual", "mbconv", "convnext"
   repeats: [3, 3, 3]  # Number of times the block is repeated in each stage
@@ -17,6 +19,8 @@ model:
   strides: [1, 2, 2]  # Stride applied to the first block of each stage
   activation: "default"  # Options: "default", "relu", "relu6", "swish", "silu", "gelu"
   kernel_initializer: "he_uniform"  # Options: "he_normal", "he_uniform", "glorot_uniform"
+  top_conv_filters: 128  # Number of filters for the final convolution layer before classification
+  classifier_dropout_rate: 0.5  # Dropout rate applied to the dense classification head
 
 
 augmentation:
@@ -41,4 +45,4 @@ augmentation:
   cutout_prob: 0.5  # Probability to apply cutout
   cutout_min_size: 4  # Minimum size of the cutout square
   cutout_max_size: 8  # Maximum size of the cutout square
-  normalization: "cifar10"  # Options: "0_1", "minus1_1", "cifar10"
+  normalization: "minus1_1"  # Options: "0_1", "minus1_1", "cifar10"
