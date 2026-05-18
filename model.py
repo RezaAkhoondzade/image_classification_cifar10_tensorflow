@@ -33,7 +33,7 @@ def _projection_shortcut(x, filters, stride, weight_decay, kernel_initializer):
 
 
 def resnet_basic(x, filters, kernel_size=3, stride=1, activation="default",
-        weight_decay=1e-4, kernel_initializer="he_normal"):
+        weight_decay=1e-4, kernel_initializer="he_normal", **kwargs):
     """Standard ResNet Basic Block."""
     act_fn = get_activation(activation, "relu")
     shortcut = x
@@ -59,7 +59,7 @@ def resnet_basic(x, filters, kernel_size=3, stride=1, activation="default",
 
 
 def preact_resnet(x, filters, kernel_size=3, stride=1, activation="default",
-        weight_decay=1e-4, kernel_initializer="he_normal"):
+        weight_decay=1e-4, kernel_initializer="he_normal", **kwargs):
     """Pre-Activation ResNet Block."""
     act_fn = get_activation(activation, "relu")
     shortcut = x
@@ -86,12 +86,11 @@ def preact_resnet(x, filters, kernel_size=3, stride=1, activation="default",
     return x
 
 
-def resnet_bottleneck(x, filters, kernel_size=3, stride=1, activation="default",
-        weight_decay=1e-4, kernel_initializer="he_normal"):
+def resnet_bottleneck(x, filters, kernel_size=3, stride=1, expansion=4,
+        activation="default", weight_decay=1e-4, kernel_initializer="he_normal", **kwargs):
     """ResNet Bottleneck Block with expansion factor of 4."""
     act_fn = get_activation(activation, "relu")
     shortcut = x
-    expansion = 4
     expanded_filters = filters * expansion
 
     x = layers.Conv2D(filters, kernel_size=1, strides=1, padding='same',
@@ -120,19 +119,19 @@ def resnet_bottleneck(x, filters, kernel_size=3, stride=1, activation="default",
     return x
 
 
-def inverted_residual(x, filters, kernel_size=3, stride=1, activation="default",
-        weight_decay=1e-4, kernel_initializer="he_normal"):
+def inverted_residual(x, filters, kernel_size=3, stride=1, expansion=6,
+        activation="default", weight_decay=1e-4, kernel_initializer="he_normal", **kwargs):
     """MobileNetV2 Inverted Residual Block with expansion factor of 6."""
     act_fn = get_activation(activation, "relu6")  # MobileNetV2 uses relu6
     shortcut = x
-    expansion = 6
     expanded_filters = x.shape[-1] * expansion
 
-    x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
-        use_bias=False, kernel_initializer=kernel_initializer,
-        kernel_regularizer=regularizers.l2(weight_decay))(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.Activation(act_fn)(x)
+    if expansion != 1:
+        x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
+            use_bias=False, kernel_initializer=kernel_initializer,
+            kernel_regularizer=regularizers.l2(weight_decay))(x)
+        x = layers.BatchNormalization()(x)
+        x = layers.Activation(act_fn)(x)
 
     x = layers.DepthwiseConv2D(kernel_size=kernel_size, strides=stride, padding='same',
         use_bias=False, depthwise_initializer=kernel_initializer,
@@ -151,21 +150,21 @@ def inverted_residual(x, filters, kernel_size=3, stride=1, activation="default",
     return x
 
 
-def mbconv(x, filters, kernel_size=3, stride=1, activation="default",
-        weight_decay=1e-4, kernel_initializer="he_normal"):
+def mbconv(x, filters, kernel_size=3, stride=1, expansion=6, activation="default",
+        weight_decay=1e-4, kernel_initializer="he_normal", **kwargs):
     """EfficientNet MBConv Block with SE mechanism."""
     act_fn = get_activation(activation, "swish")  # EfficientNet uses swish
     shortcut = x
-    expansion = 6
     se_ratio = 0.25
     input_filters = shortcut.shape[-1]
     expanded_filters = input_filters * expansion
 
-    x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
-        use_bias=False, kernel_initializer=kernel_initializer,
-        kernel_regularizer=regularizers.l2(weight_decay))(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.Activation(act_fn)(x)
+    if expansion != 1:
+        x = layers.Conv2D(expanded_filters, kernel_size=1, strides=1, padding='same',
+            use_bias=False, kernel_initializer=kernel_initializer,
+            kernel_regularizer=regularizers.l2(weight_decay))(x)
+        x = layers.BatchNormalization()(x)
+        x = layers.Activation(act_fn)(x)
 
     x = layers.DepthwiseConv2D(kernel_size=kernel_size, strides=stride, padding='same',
         use_bias=False, depthwise_initializer=kernel_initializer,
@@ -176,7 +175,7 @@ def mbconv(x, filters, kernel_size=3, stride=1, activation="default",
     # Squeeze-and-Excitation block. Activations are strictly relu and sigmoid
     reduced_filters = max(4, int(input_filters * se_ratio))
     se = layers.GlobalAveragePooling2D(keepdims=True)(x)
-    se = layers.Conv2D(reduced_filters, kernel_size=1, activation='relu',
+    se = layers.Conv2D(reduced_filters, kernel_size=1, activation=act_fn,
         use_bias=True, kernel_initializer=kernel_initializer)(se)
     se = layers.Conv2D(expanded_filters, kernel_size=1, activation='sigmoid',
         use_bias=True, kernel_initializer=kernel_initializer)(se)
@@ -193,12 +192,11 @@ def mbconv(x, filters, kernel_size=3, stride=1, activation="default",
     return x
 
 
-def convnext(x, filters, kernel_size=5, stride=1, activation="default",
-        weight_decay=1e-4, kernel_initializer="he_normal"):
+def convnext(x, filters, kernel_size=5, stride=1, expansion=4, activation="default",
+        weight_decay=1e-4, kernel_initializer="he_normal", **kwargs):
     """ConvNeXt Block adapted for CIFAR."""
     act_fn = get_activation(activation, "gelu") # ConvNeXt uses gelu
     shortcut = x
-    expansion = 4
     expanded_filters = filters * expansion
 
     x = layers.DepthwiseConv2D(kernel_size=kernel_size, strides=stride, padding='same',
@@ -244,6 +242,7 @@ def build_model(model_cfg, input_shape=(32, 32, 3), num_classes=10):
     filters = model_cfg["filters"]
     kernels = model_cfg["kernels"]
     strides = model_cfg["strides"]
+    expansions = model_cfg["expansions"]
     activation = model_cfg["activation"]
     kernel_initializer = model_cfg["kernel_initializer"]
     top_conv_filters = model_cfg["top_conv_filters"]
@@ -272,12 +271,13 @@ def build_model(model_cfg, input_shape=(32, 32, 3), num_classes=10):
         stage_filter = filters[stage_idx]
         stage_kernel = kernels[stage_idx]
         stage_stride = strides[stage_idx]
+        stage_expansion = expansions[stage_idx]
 
         for block_idx in range(stage_repeats):
             current_stride = stage_stride if block_idx == 0 else 1
 
             x = block_fn(x, filters=stage_filter, kernel_size=stage_kernel,
-                stride=current_stride, activation=activation,
+                stride=current_stride, expansion=stage_expansion, activation=activation,
                 weight_decay=weight_decay, kernel_initializer=kernel_initializer)
 
     if block_type == "mbconv" or block_type == "inverted_residual":

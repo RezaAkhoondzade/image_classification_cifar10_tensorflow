@@ -11,12 +11,13 @@ training:
 model:
   stem_conv_filters: 16  # Number of filters for the initial (stem) convolution layer
   stem_conv_stride: 1  # Stride applied to the initial (stem) convolution layer
-  block_type: "mbconv"  # Options: "resnet_basic", "preact_resnet",
+  block_type: "resnet_basic"  # Options: "resnet_basic", "preact_resnet",
     # "resnet_bottleneck", "inverted_residual", "mbconv", "convnext"
   repeats: [3, 3, 3]  # Number of times the block is repeated in each stage
-  filters: [24, 40, 80]  # Number of filters (channels) for each stage
+  filters: [16, 32, 64]  # Number of filters (channels) for each stage
   kernels: [3, 3, 3]  # Kernel size for convolutions in each stage
   strides: [1, 2, 2]  # Stride applied to the first block of each stage
+  expansions: [1, 6, 6]  # expansions applied to mbconv
   activation: "default"  # Options: "default", "relu", "relu6", "swish", "silu", "gelu"
   kernel_initializer: "he_uniform"  # Options: "he_normal", "he_uniform", "glorot_uniform"
   top_conv_filters: 128  # Number of filters for the final convolution layer before classification
