@@ -152,9 +152,7 @@ pip install -r requirements.txt
 
 ## Results: A Proof of Concept
 
-To validate the framework's effectiveness, a model was trained on CIFAR-10 using the **`resnet_basic`** block (from EfficientNet) with a stage repeat configuration of `[3, 3, 3]`.
-
-Despite the model's modest size, the powerful augmentation pipeline and robust training setup enabled it to achieve **92.5% - 93.2% accuracy** on the test set, demonstrating the framework's capability to produce high-performing models.
+To validate the framework's effectiveness, a model was trained on CIFAR-10 using the **`resnet_basic`** block (from ResNet) with a stage repeat configuration of `[3, 3, 3]`.
 
 Despite the model's modest size, the powerful augmentation pipeline and robust training setup enabled it to achieve **92.5% - 93.2% accuracy** on the CIFAR-10 test set. For comparison, the original ResNet paper reported **91.25% accuracy** on CIFAR-10, meaning the current framework achieves approximately **1.25% - 2.0% higher accuracy**, largely due to the stronger data augmentation pipeline and modern training practices integrated into the framework.
 
